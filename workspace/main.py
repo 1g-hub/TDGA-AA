@@ -13,10 +13,10 @@ import time
 import json
 from pprint import pprint
 import random
-import argparse
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import progress_bar, parse_args, get_model_name, select_model, select_optimizer, select_scheduler
+from utils import progress_bar, parse_args, get_model_name, select_model, select_optimizer, select_scheduler, \
+    get_train_transform, get_test_transform, get_dataset
 from datetime import datetime
 
 
@@ -69,29 +69,18 @@ def main(**kwargs):
 
     # Data
     print('\n[+] Load dataset')
+    transform_train = get_train_transform(args, net, log_dir)
+    transform_test = get_test_transform(args, net)
 
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
+    trainset = get_dataset(args, transform_train, 'trainval')
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test)
+    testset = get_dataset(args, transform_test, 'test')
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=100, shuffle=False, num_workers=args.num_workers)
-
+    print(len(trainset))
+    print(len(testset))
     classes = ('plane', 'car', 'bird', 'cat', 'deer',
                'dog', 'frog', 'horse', 'ship', 'truck')
 

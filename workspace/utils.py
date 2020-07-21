@@ -10,8 +10,17 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.init as init
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import Subset
 import collections
+import pickle as cp
 from models import *
+
+from sklearn.model_selection import StratifiedShuffleSplit
+
+DATASET_PATH = './data/'
+current_epoch = 0
 
 
 def get_mean_and_std(dataset):
@@ -220,9 +229,9 @@ def select_model(args):
 def select_optimizer(args, net):
     if args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(net.parameters(), lr=args.lr,
-                              momentum=0.9, weight_decay=5e-4)
+                                    momentum=0.9, weight_decay=5e-4)
     elif args.optimizer == 'rms':
-        #optimizer = torch.optim.RMSprop(model.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=1e-5)
+        # optimizer = torch.optim.RMSprop(model.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=1e-5)
         optimizer = torch.optim.RMSprop(net.parameters(), lr=args.lr)
     elif args.optimizer == 'adam':
         optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
@@ -234,11 +243,122 @@ def select_optimizer(args, net):
 def select_scheduler(args, optimizer):
     if not args.scheduler or args.scheduler == 'None':
         return None
-    elif args.scheduler =='clr':
-        return torch.optim.lr_scheduler.CyclicLR(optimizer, 0.01, 0.015, mode='triangular2', step_size_up=250000, cycle_momentum=False)
-    elif args.scheduler =='exp':
+    elif args.scheduler == 'clr':
+        return torch.optim.lr_scheduler.CyclicLR(optimizer, 0.01, 0.015, mode='triangular2', step_size_up=250000,
+                                                 cycle_momentum=False)
+    elif args.scheduler == 'exp':
         return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9999283, last_epoch=-1)
     elif args.scheduler == "cosine":
         return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=0.)
     else:
         raise Exception('Unknown Scheduler')
+
+
+def get_train_transform(args, model, log_dir=None):
+    if args.auto_augment:
+        assert args.dataset == 'cifar10'
+
+        from tdga_augment import tdga_augment
+        if args.augment_path:
+            transform = cp.load(open(args.augment_path, 'rb'))
+            os.system('cp {} {}'.format(
+                args.augment_path, os.path.join(log_dir, 'augmentation.cp')))
+        else:
+            transform = tdga_augment(args, model, log_dir=log_dir)
+            if log_dir:
+                cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
+
+    elif args.dataset == 'cifar10':
+        transform = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+    elif args.dataset == 'imagenet':
+        resize_h, resize_w = model.img_size[0], int(model.img_size[1] * 1.875)
+        transform = transforms.Compose([
+            transforms.Resize([resize_h, resize_w]),
+            transforms.RandomCrop(model.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor()
+        ])
+
+    else:
+        raise Exception('Unknown Dataset')
+
+    print(transform)
+
+    return transform
+
+
+def get_test_transform(args, model):
+    if args.dataset == 'cifar10':
+        val_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+
+    elif args.dataset == 'imagenet':
+        resize_h, resize_w = model.img_size[0], int(model.img_size[1] * 1.875)
+        val_transform = transforms.Compose([
+            transforms.Resize([resize_h, resize_w]),
+            transforms.ToTensor()
+        ])
+
+    else:
+        raise Exception('Unknown Dataset')
+
+    return val_transform
+
+
+def split_dataset(args, dataset, k):
+    # load dataset
+    X = list(range(len(dataset)))
+    Y = dataset.targets
+
+    # split to k-fold
+    assert len(X) == len(Y)
+
+    def _it_to_list(_it):
+        return list(zip(*list(_it)))
+
+    sss = StratifiedShuffleSplit(n_splits=k, random_state=args.seed, test_size=0.1)
+    Dm_indexes, Da_indexes = _it_to_list(sss.split(X, Y))
+
+    return Dm_indexes, Da_indexes
+
+
+def get_dataset(args, transform, split='train'):
+    assert split in ['train', 'val', 'test', 'trainval']
+
+    if args.dataset == 'cifar10':
+        train = split in ['train', 'val', 'trainval']
+        dataset = torchvision.datasets.CIFAR10(DATASET_PATH,
+                                               train=train,
+                                               transform=transform,
+                                               download=True)
+
+        if split in ['train', 'val']:
+            split_path = os.path.join(DATASET_PATH,
+                                      'cifar-10-batches-py', 'train_val_index.cp')
+
+            if not os.path.exists(split_path):
+                [train_index], [val_index] = split_dataset(args, dataset, k=1)
+                split_index = {'train': train_index, 'val': val_index}
+                cp.dump(split_index, open(split_path, 'wb'))
+
+            split_index = cp.load(open(split_path, 'rb'))
+            dataset = Subset(dataset, split_index[split])
+
+    elif args.dataset == 'imagenet':
+        dataset = torchvision.datasets.ImageNet(DATASET_PATH,
+                                                split=split,
+                                                transform=transform,
+                                                download=(split is 'val'))
+
+    else:
+        raise Exception('Unknown dataset')
+
+    return dataset
