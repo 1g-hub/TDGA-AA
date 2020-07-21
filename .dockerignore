@@ -1,0 +1,15 @@
+docker
+.circleci
+.git
+.gitattributes
+.gitignore
+README.md
+CHANGELOG.md
+LICENSE
+.idea
+config_voc.json
+.jpg
+.png
+.jpeg
+.pth
+workspace
