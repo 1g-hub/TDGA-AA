@@ -3,6 +3,7 @@ import json
 import time
 import torch
 import torch.nn as nn
+import torch.backends.cudnn as cudnn
 import random
 import torchvision.transforms as transforms
 from deap import base
@@ -14,7 +15,6 @@ import numpy as np
 
 from torch.utils.data import Subset
 from sklearn.model_selection import StratifiedShuffleSplit
-from concurrent.futures import ProcessPoolExecutor
 
 from transforms import *
 
@@ -36,70 +36,117 @@ BAYES_DEFAULT_CANDIDATES = [
 ]
 
 from transforms_range import augment_list
+
 DEFAULT_CANDIDATES = augment_list()
 
 # DEFAULT_CANDIDATES = BAYES_DEFAULT_CANDIDATES
 
-from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from utils import *
 
 
-def train_child(args, model, dataset, subset_indx):
+def train_child(args, net, dataset, subset_indx):
+    # device = None
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    optimizer = select_optimizer(args, model)
+    optimizer = select_optimizer(args, net)
     scheduler = select_scheduler(args, optimizer)
     criterion = nn.CrossEntropyLoss()
 
     dataset.transform = transforms.Compose([
         transforms.Resize(32),
         transforms.ToTensor()])
+
     subset = Subset(dataset, subset_indx)
-    data_loader = get_inf_dataloader(args, subset)
+    trainloader = torch.utils.data.DataLoader(
+        subset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     if device:
-        model = model.to(device)
+        net = net.to(device)
         criterion = criterion.to(device)
 
     elif args.use_cuda:
-        model = model.cuda()
+        net = net.cuda()
         criterion = criterion.cuda()
 
         if torch.cuda.device_count() > 1:
             print('\n[+] Use {} GPUs'.format(torch.cuda.device_count()))
-            model = nn.DataParallel(model)
+            net = nn.DataParallel(net)
 
-    start_t = time.time()
-    for step in range(args.start_step, args.max_step):
-        batch = next(data_loader)
-        _train_res = train_step(args, model, optimizer, scheduler, criterion, batch, step, None, device)
+    if device == 'cuda':
+        net = torch.nn.DataParallel(net)
+        cudnn.benchmark = True
 
-        if step % args.print_step == 0:
-            print('\n[+] Training step: {}/{}\tElapsed time: {:.2f}min\tLearning rate: {}\tDevice: {}'.format(
-                step, args.max_step,(time.time()-start_t)/60, optimizer.param_groups[0]['lr'], device))
+    for epoch in range(args.epochs):
+        print('\nEpoch: %d' % epoch)
+        net.train()
+        train_loss = 0
+        correct = 0
+        total = 0
+        total_steps = len(trainloader)
 
-            print('  Acc@1 : {:.3f}%'.format(_train_res[0].data.cpu().numpy()[0]*100))
-            print('  Acc@5 : {:.3f}%'.format(_train_res[1].data.cpu().numpy()[0]*100))
-            print('  Loss : {}'.format(_train_res[2].data))
+        for batch_idx, (inputs, targets) in enumerate(trainloader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
 
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+
+            progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                         % (train_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+
+            scheduler.step(epoch - 1 + float(batch_idx + 1) / total_steps)
+            print(scheduler.get_lr())
+
+    _train_res = {
+        'loss': train_loss / (batch_idx + 1),
+        'acc': correct / total,
+    }
     return _train_res
 
 
-def validate_child(args, model, dataset, subset_indx, transform, device=None):
+def validate_child(args, net, dataset, subset_indx, transform):
     criterion = nn.CrossEntropyLoss()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = None
     if device:
-        model = model.to(device)
+        net = net.to(device)
         criterion = criterion.to(device)
 
     elif args.use_cuda:
-        model = model.cuda()
+        net = net.cuda()
         criterion = criterion.cuda()
 
     dataset.transform = transform
     subset = Subset(dataset, subset_indx)
-    data_loader = get_dataloader(args, subset, pin_memory=False)
+    val_loader = torch.utils.data.DataLoader(
+        subset, batch_size=100, shuffle=False, num_workers=args.num_workers)
+    net.eval()
+    test_loss = 0
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(val_loader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
 
-    return validate(args, model, criterion, data_loader, 0, None, device)
+            test_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+
+            progress_bar(batch_idx, len(val_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                         % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+    val_res = {
+        'loss': test_loss / (batch_idx + 1),
+        'acc': correct / total,
+    }
+    return val_res
 
 
 def get_next_subpolicy(transform_candidates, op_per_subpolicy=2):
@@ -160,7 +207,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Da
 
     def evaluate_ind(individual):
         subpolicy = ind_to_subpolicy(individual, transform_candidates, allele_max, args.mag)
-        return validate_child(args, child_model, dataset, Da_indx, subpolicy, device)[0].cpu().numpy(),  # val acc@1
+        return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
 
     toolbox.register("evaluate", evaluate_ind)
     toolbox.register("mate", tools.cxUniform, indpb=0.5)
@@ -232,7 +279,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Da
     analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy_{}.png'.format(global_step)))
     analizer.plot_stats(file_name=os.path.join(log_dir, 'figures/stats_{}.png'.format(global_step)))
     subpolicies = []
-    print("Final Pop:",  pop)
+    print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
     best_ind = toolbox.select(pop, B)
     # best_ind = tools.selBest(pop, B)
@@ -248,9 +295,9 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Da
             transforms.RandomHorizontalFlip(),
             ## policy
             *subpolicy,
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             ## to tensor
-            transforms.ToTensor()])
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
         subpolicies.append((subpolicy, ind.fitness.values[0]))
     with open(os.path.join(log_dir, 'subpolicies.txt'), mode='a', encoding="utf_8") as f:
         f.writelines("Search Phase {}\n".format(global_step))
@@ -261,7 +308,6 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Da
 
     global_step += 1
     return subpolicies
-
 
 
 def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates, B, log_dir):
@@ -278,27 +324,21 @@ def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates,
     # search sub policy
     subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Da_indx, B, log_dir)
 
-    _transform.extend([subpolicy[0] for subpolicy in subpolicies])
-
-    return _transform
+    return [subpolicy[0] for subpolicy in subpolicies]
 
 
 def tdga_augment(args, model, transform_candidates=None, B=8, log_dir=None):
     args_str = json.dumps(args._asdict())
     dataset = get_dataset(args, None, 'trainval')
-    transform, futures = [], []
 
-    torch.multiprocessing.set_start_method('spawn', force=True)
+    # torch.multiprocessing.set_start_method('spawn', force=True)
 
-    if not transform_candidates:
-        if not args.ga:
-            transform_candidates = BAYES_DEFAULT_CANDIDATES
-        else:
-            transform_candidates = DEFAULT_CANDIDATES
+    # transform_candidates = BAYES_DEFAULT_CANDIDATES
+    transform_candidates = DEFAULT_CANDIDATES
 
     # split
     Dm_indexes, Da_indexes = split_dataset(args, dataset, 1)  # train_dataとval_dataを分割
-    transform = process_fn(args_str, model, dataset, Dm_indexes, Da_indexes, transform_candidates, B, log_dir)
+    transform = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, B, log_dir)
 
     transform = transforms.RandomChoice(transform)
 

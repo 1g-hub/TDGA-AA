@@ -70,6 +70,7 @@ def main(**kwargs):
     # Data
     print('\n[+] Load dataset')
     transform_train = get_train_transform(args, net, log_dir)
+    print(transform_train)
     transform_test = get_test_transform(args, net)
 
     trainset = get_dataset(args, transform_train, 'trainval')
@@ -79,8 +80,8 @@ def main(**kwargs):
     testset = get_dataset(args, transform_test, 'test')
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=100, shuffle=False, num_workers=args.num_workers)
-    print(len(trainset))
-    print(len(testset))
+    print("Train:", len(trainset))
+    print("Test", len(testset))
     classes = ('plane', 'car', 'bird', 'cat', 'deer',
                'dog', 'frog', 'horse', 'ship', 'truck')
 
@@ -96,7 +97,6 @@ def main(**kwargs):
         correct = 0
         total = 0
         total_steps = len(trainloader)
-        steps = 0
 
         for batch_idx, (inputs, targets) in enumerate(trainloader):
             inputs, targets = inputs.to(device), targets.to(device)
@@ -172,4 +172,4 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    fire.Fire(main())
+    fire.Fire(main)

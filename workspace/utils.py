@@ -167,19 +167,15 @@ def parse_args(kwargs):
     kwargs['use_cuda'] = kwargs['use_cuda'] if 'use_cuda' in kwargs else True
     kwargs['use_cuda'] = kwargs['use_cuda'] and torch.cuda.is_available()
     kwargs['num_workers'] = kwargs['num_workers'] if 'num_workers' in kwargs else 4
-    kwargs['print_step'] = kwargs['print_step'] if 'print_step' in kwargs else 2000
-    kwargs['val_step'] = kwargs['val_step'] if 'val_step' in kwargs else 2000
     kwargs['scheduler'] = kwargs['scheduler'] if 'scheduler' in kwargs else 'cosine'
     kwargs['batch_size'] = kwargs['batch_size'] if 'batch_size' in kwargs else 128
-    kwargs['start_step'] = kwargs['start_step'] if 'start_step' in kwargs else 0
-    kwargs['max_step'] = kwargs['max_step'] if 'max_step' in kwargs else 64000
     kwargs['epochs'] = kwargs['epochs'] if 'epochs' in kwargs else 200
     kwargs['warmup'] = kwargs['warmup'] if 'warmup' in kwargs else False
     kwargs['auto_augment'] = kwargs['auto_augment'] if 'auto_augment' in kwargs else False
     kwargs['augment_path'] = kwargs['augment_path'] if 'augment_path' in kwargs else None
-    kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else None
-    kwargs['tinit'] = kwargs['tinit'] if 'tinit' in kwargs else None
-    kwargs['tfin'] = kwargs['tfin'] if 'tfin' in kwargs else None
+    kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 15  # [0, 30]
+    kwargs['tinit'] = kwargs['tinit'] if 'tinit' in kwargs else 0.05
+    kwargs['tfin'] = kwargs['tfin'] if 'tfin' in kwargs else 0.05
 
     # to named tuple
     args = dict_to_namedtuple(kwargs)
