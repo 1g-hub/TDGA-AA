@@ -16,24 +16,10 @@ import numpy as np
 from torch.utils.data import Subset
 from sklearn.model_selection import StratifiedShuffleSplit
 
-# from transforms import *
 
-# BAYES_DEFAULT_CANDIDATES = [
-#     ShearXY,
-#     TranslateXY,
-#     Rotate,
-#     AutoContrast,
-#     Invert,
-#     Equalize,
-#     Solarize,
-#     Posterize,
-#     Contrast,
-#     Color,
-#     Brightness,
-#     Sharpness,
-#     Cutout,
-#     # SamplePairing,
-# ]
+# from transforms_range import *
+#
+# DEFAULT_CANDIDATES = augment_list()
 
 from transforms_range_prob import *
 
@@ -44,22 +30,15 @@ DEFAULT_CANDIDATES = augment_list()
 from utils import *
 
 
-def train_child(args, net, dataset, subset_indx):
-    # device = None
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    optimizer = select_optimizer(args, net)
-    scheduler = select_scheduler(args, optimizer)
+def validate_child_train(args, dataset, Dm_indx, Da_indx, transform):  # individualを元に学習
+    net = select_model(args)
+
     criterion = nn.CrossEntropyLoss()
-
-    dataset.transform = transforms.Compose([
-        transforms.Resize(32),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
-
-    subset = Subset(dataset, subset_indx)
-    trainloader = torch.utils.data.DataLoader(
-        subset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
+    optimizer = select_optimizer(args, net)
+    train_epoch = args.ind_train_epochs
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=train_epoch, eta_min=0.)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = None
     if device:
         net = net.to(device)
         criterion = criterion.to(device)
@@ -68,15 +47,12 @@ def train_child(args, net, dataset, subset_indx):
         net = net.cuda()
         criterion = criterion.cuda()
 
-        if torch.cuda.device_count() > 1:
-            print('\n[+] Use {} GPUs'.format(torch.cuda.device_count()))
-            net = nn.DataParallel(net)
+    dataset.transform = transform
+    Dm_subset = Subset(dataset, Dm_indx)  # train dataset
+    trainloader = torch.utils.data.DataLoader(
+        Dm_subset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    if device == 'cuda':
-        net = torch.nn.DataParallel(net)
-        cudnn.benchmark = True
-
-    for epoch in range(args.epochs):
+    for epoch in range(train_epoch):
         print('\nEpoch: %d' % epoch)
         net.train()
         train_loss = 0
@@ -103,29 +79,9 @@ def train_child(args, net, dataset, subset_indx):
             scheduler.step(epoch - 1 + float(batch_idx + 1) / total_steps)
             print(scheduler.get_lr())
 
-    _train_res = {
-        'loss': train_loss / (batch_idx + 1),
-        'acc': correct / total,
-    }
-    return _train_res
-
-
-def validate_child(args, net, dataset, subset_indx, transform):
-    criterion = nn.CrossEntropyLoss()
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # device = None
-    if device:
-        net = net.to(device)
-        criterion = criterion.to(device)
-
-    elif args.use_cuda:
-        net = net.cuda()
-        criterion = criterion.cuda()
-
-    dataset.transform = transform
-    subset = Subset(dataset, subset_indx)
+    Da_subset = Subset(dataset, Da_indx)  # valid dataset
     val_loader = torch.utils.data.DataLoader(
-        subset, batch_size=100, shuffle=False, num_workers=args.num_workers)
+        Da_subset, batch_size=100, shuffle=False, num_workers=args.num_workers)
     net.eval()
     valid_loss = 0
     correct = 0
@@ -150,54 +106,52 @@ def validate_child(args, net, dataset, subset_indx, transform):
     return val_res
 
 
-def get_next_subpolicy(transform_candidates, op_per_subpolicy=2):
-    n_candidates = len(transform_candidates)
+def update_transform_prob(pop, transform_prob):  # 世代の適応度情報から各操作の適用確率を更新する
+    f_bar = sum(ind.fitness.values[0] for ind in pop)/len(pop)
+    f_l = [[] for _ in range(len(pop[0]))]
+    for ind in pop:
+        for i in range(len(ind)):
+            if ind[i]:
+                f_l[i].append(ind.fitness.values[0])
+
+    for i in range(len(pop[0])):
+        if f_l[i]:
+            fi_bar = sum(f_l[i])/len(f_l[i])
+            transform_prob[i] *= fi_bar / f_bar
+
+    sum_p = sum(transform_prob)
+    transform_prob = [p/sum_p for p in transform_prob]  # 総和を1に
+    return transform_prob
+
+
+def ind_to_subpolicy(individual, transform_candidates, transform_prob, mag):  # individual から subpolicy に変換する
     subpolicy = []
 
-    for i in range(op_per_subpolicy):
-        indx = random.randrange(n_candidates)
-        prob = random.random()
-        mag = random.random()
-        subpolicy.append(transform_candidates[indx](prob, mag))
-
-    subpolicy = transforms.Compose([
-        *subpolicy,
-        transforms.Resize(32),
-        transforms.ToTensor()])
-
-    return subpolicy
-
-
-def search_subpolicies(args, transform_candidates, child_model, dataset, Da_indx, B, log_dir):
-    subpolicies = []
-
-    for b in range(B):
-        subpolicy = get_next_subpolicy(transform_candidates)
-        val_res = validate_child(args, child_model, dataset, Da_indx, subpolicy)
-        subpolicies.append((subpolicy, val_res[2]))
-
-    return subpolicies
-
-
-def ind_to_subpolicy(individual, transform_candidates, allele_max, mag):  # individual から subpolicy に変換する
-    subpolicy = []
+    ### USE RANDOM CHOICE
     for allele, op in zip(individual, transform_candidates):
         if allele:
-            subpolicy.append(op(prob=1/len(transform_candidates), mag=mag))
+            subpolicy.append(op(prob=1, mag=mag))
 
     subpolicy = transforms.Compose([
-        *subpolicy,
+        transforms.RandomChoice(subpolicy),
         transforms.Resize(32),
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
+
+    ### USE PROB
+    # for allele, op, prob in zip(individual, transform_candidates, transform_prob):
+    #     if allele:
+    #         subpolicy.append(op(prob=prob, mag=mag))
+    #
+    # subpolicy = transforms.Compose([
+    #     *subpolicy,
+    #     transforms.Resize(32),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
     return subpolicy
 
 
-global_step = 0  # 探索を何回したか
-
-
-def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir):
-    global global_step
+def search_subpolicies_tdga(args, transform_candidates, dataset, Dm_indx, Da_indx, B, log_dir):
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
@@ -208,8 +162,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     def evaluate_ind(individual):
-        subpolicy = ind_to_subpolicy(individual, transform_candidates, allele_max, args.mag)
-        return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
+        subpolicy = ind_to_subpolicy(individual, transform_candidates, transform_prob, args.mag)
+        return validate_child_train(args, dataset, Dm_indx, Da_indx, subpolicy)['acc'],
 
     toolbox.register("evaluate", evaluate_ind)
     toolbox.register("mate", tools.cxUniform, indpb=0.5)
@@ -224,14 +178,17 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     # toolbox.register("mutate", mutChangeBit, indpb=0.06)
     toolbox.register("mutate", tools.mutFlipBit, indpb=0.06)
 
-    Np = 64
-    Ngen = 50
+    Np = 8
+    Ngen = 20
     t_init = args.tinit
     t_fin = args.tfin
     tds = ThermoDynamicalSelection(Np=Np, t_init=t_init, t_fin=t_fin, Ngen=Ngen, is_compress=False)
     toolbox.register("select", tds.select)
     pop = toolbox.population(n=Np)
     CXPB, MUTPB, NGEN = 1, 1, Ngen
+
+    transform_prob = [1/len(transform_candidates)]*len(transform_candidates)
+
     print("Start of evolution")
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
@@ -276,10 +233,11 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
 
         analizer.add_pop(list(map(toolbox.clone, pop)))
 
-        # fits = [ind.fitness.values[0] for ind in pop]
+        transform_prob = update_transform_prob(pop, transform_prob)
+
     os.makedirs(os.path.join(log_dir, 'figures'), exist_ok=True)
-    analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy_{}.png'.format(global_step)))
-    analizer.plot_stats(file_name=os.path.join(log_dir, 'figures/stats_{}.png'.format(global_step)))
+    analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy.png'))
+    analizer.plot_stats(file_name=os.path.join(log_dir, 'figures/stats.png'))
     subpolicies = []
     print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
@@ -288,15 +246,17 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     print("best_ind", best_ind)
     for ind in best_ind:
         subpolicy = []
-        for allele, op in zip(ind, transform_candidates):
+        for allele, op, prob in zip(ind, transform_candidates, transform_prob):
             if allele:
-                subpolicy.append(op(prob=1/len(transform_candidates), mag=args.mag))
+                subpolicy.append(op(prob=prob, mag=args.mag))
+                # subpolicy.append(op(prob=1, mag=args.mag))
         subpolicy = transforms.Compose([
             ## baseline augmentation
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             ## policy
-            *subpolicy,
+            transforms.RandomChoice(subpolicy),
+            # *subpolicy,
             ## to tensor
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -304,45 +264,40 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         ])
         subpolicies.append((subpolicy, ind.fitness.values[0]))
     with open(os.path.join(log_dir, 'subpolicies.txt'), mode='a', encoding="utf_8") as f:
-        f.writelines("Search Phase {}\n".format(global_step))
         for subpolicy in subpolicies:
             f.writelines(str(subpolicy) + "\n")
         f.write("\n")
+        f.writelines(str(transform_prob))
     print(subpolicies)
 
-    global_step += 1
     return subpolicies
 
 
-def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates, B, log_dir):
+def process_fn(args_str, dataset, Dm_indx, Da_indx, transform_candidates, B, log_dir):
     kwargs = json.loads(args_str)
     args, kwargs = parse_args(kwargs)
-    _transform = []
-
-    print('[+] Pre-Training strated')
-
-    # train child model
-    child_model = copy.deepcopy(model)
-    train_res = train_child(args, child_model, dataset, Dm_indx)
 
     # search sub policy
-    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir)
+    subpolicies = search_subpolicies_tdga(args, transform_candidates, dataset, Dm_indx, Da_indx, B, log_dir)
 
     return [subpolicy[0] for subpolicy in subpolicies]
 
 
-def tdga_augment(args, model, transform_candidates=None, B=16, log_dir=None):
+def tdga_augment(args, transform_candidates=None, B=8, log_dir=None):  # B: 最終的にとる個体数
     args_str = json.dumps(args._asdict())
     dataset = get_dataset(args, None, 'trainval')
 
-    # torch.multiprocessing.set_start_method('spawn', force=True)
-
-    # transform_candidates = BAYES_DEFAULT_CANDIDATES
     transform_candidates = DEFAULT_CANDIDATES
 
+    if args.dataset == "cifar10":
     # split
-    Dm_indexes, Da_indexes = split_dataset(args, dataset, 1)  # train_dataとval_dataを分割
-    transform = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, B, log_dir)
+        Dm_indexes, Da_indexes = split_dataset(args, dataset, 10)  # train_dataとval_dataを分割
+        Dm_indexes = Da_indexes[0]  # 5000こずつ
+        Da_indexes = Da_indexes[1]
+    else:
+        Dm_indexes, Da_indexes = None, None
+
+    transform = process_fn(args_str, dataset, Dm_indexes, Da_indexes, transform_candidates, B, log_dir)
 
     transform = transforms.RandomChoice(transform)
 

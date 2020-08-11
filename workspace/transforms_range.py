@@ -285,7 +285,7 @@ class Cutout:  # [0, 60] => percentage: [0, 0.2]
         if self.val <= 0.:
             return img
         v = self.val * img.size[0]
-        return CutoutAbs(img, v)
+        return CutoutAbs(v)(img)
 
     def __repr__(self):
         return '%s(magnitude=%.2f)' % \
@@ -365,8 +365,29 @@ def augment_list():  # 16 oeprations and their ranges
     #     # (SamplePairing(imgs), 0, 0.4),  # 15
     # ]
 
+    # l = [
+    #     Identity,
+    #     ShearX,  # 0
+    #     ShearY,  # 1
+    #     TranslateX,  # 2
+    #     TranslateY,  # 3
+    #     Rotate,  # 4
+    #     AutoContrast,  # 5
+    #     # Invert,  # 6
+    #     Equalize,  # 7
+    #     Solarize,  # 8
+    #     Posterize,  # 9
+    #     Contrast,  # 10
+    #     Color,  # 11
+    #     Brightness,  # 12
+    #     Sharpness,  # 13
+    #     # (Cutout, 0, 0.2),  # 14
+    #     # (SamplePairing(imgs), 0, 0.4),  # 15
+    # ]
+
     # https://github.com/tensorflow/tpu/blob/8462d083dd89489a79e3200bcc8d4063bf362186/models/official/efficientnet/autoaugment.py#L505
     l = [
+        Identity,
         AutoContrast,
         Equalize,
         Invert,
@@ -433,6 +454,9 @@ class CutoutDefault(object):
         img *= mask
         return img
 
+    def __str__(self):
+        return "CutoutDefault(length={})".format(self.length)
+
 
 class RandAugment:
     def __init__(self, n, m):
@@ -442,15 +466,18 @@ class RandAugment:
 
     def __call__(self, img):
         ops = random.choices(self.augment_list, k=self.n)
-        for op, minval, maxval in ops:
-            val = (float(self.m) / 30) * float(maxval - minval) + minval
-            img = op(img, val)
+        for op in ops:
+            img = op(self.m)(img)
 
         return img
+
+    def __str__(self):
+        return "RandAugment(N={}, M={})".format(self.n, self.m)
 
 
 if __name__ == '__main__':
     l = augment_list()
+    # l = [CutoutDefault]
     path = "horse.jpg"
     import os
     os.makedirs("transform_test/", exist_ok=True)

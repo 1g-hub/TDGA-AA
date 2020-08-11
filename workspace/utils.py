@@ -16,6 +16,7 @@ from torch.utils.data import Subset
 import collections
 import pickle as cp
 from models import *
+from transforms_range import *
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -170,10 +171,13 @@ def parse_args(kwargs):
     kwargs['scheduler'] = kwargs['scheduler'] if 'scheduler' in kwargs else 'cosine'
     kwargs['batch_size'] = kwargs['batch_size'] if 'batch_size' in kwargs else 128
     kwargs['epochs'] = kwargs['epochs'] if 'epochs' in kwargs else 200
+    kwargs['ind_train_epochs'] = kwargs['ind_train_epochs'] if 'ind_train_epochs' in kwargs else 120
     kwargs['warmup'] = kwargs['warmup'] if 'warmup' in kwargs else False
     kwargs['auto_augment'] = kwargs['auto_augment'] if 'auto_augment' in kwargs else False
+    kwargs['auto_augment_ind_train'] =kwargs['auto_augment_ind_train'] if 'auto_augment_ind_train' in kwargs else False
+    kwargs['rand_augment'] = kwargs['rand_augment'] if 'rand_augment' in kwargs else False
     kwargs['augment_path'] = kwargs['augment_path'] if 'augment_path' in kwargs else None
-    kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 15  # [0, 30]
+    kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 10  # [0, 30]
     kwargs['tinit'] = kwargs['tinit'] if 'tinit' in kwargs else 0.05
     kwargs['tfin'] = kwargs['tfin'] if 'tfin' in kwargs else 0.05
 
@@ -218,7 +222,6 @@ def select_model(args):
     # net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=10)  # 'wresnet28_2or10'
     # net = WideResNet(depth=40, widen_factor=2, dropout_rate=0.0, num_classes=10)  # 'wresnet40_2'
 
-    print(net)
     return net
 
 
@@ -251,7 +254,17 @@ def select_scheduler(args, optimizer):
 
 
 def get_train_transform(args, model, log_dir=None):
-    if args.auto_augment:
+    if args.rand_augment:
+        transform = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            RandAugment(n=1, m=4),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            CutoutDefault(length=16),
+        ])
+
+    elif args.auto_augment:
         assert args.dataset == 'cifar10'
 
         from tdga_augment import tdga_augment
@@ -263,13 +276,25 @@ def get_train_transform(args, model, log_dir=None):
             transform = tdga_augment(args, model, log_dir=log_dir)
             if log_dir:
                 cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
+    elif args.auto_augment_ind_train:  # 個体でミニデータを用いて学習する
+        assert args.dataset == 'cifar10'
 
+        from tdga_augment_ind_train import tdga_augment
+        if args.augment_path:
+            transform = cp.load(open(args.augment_path, 'rb'))
+            os.system('cp {} {}'.format(
+                args.augment_path, os.path.join(log_dir, 'augmentation.cp')))
+        else:
+            transform = tdga_augment(args, log_dir=log_dir)
+            if log_dir:
+                cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
     elif args.dataset == 'cifar10':
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            CutoutDefault(length=16),
         ])
 
     elif args.dataset == 'imagenet':

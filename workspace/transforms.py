@@ -158,7 +158,18 @@ class CutoutOp(object):
 
 
 if __name__ == "__main__":
-    path = "rena.gif"
+    path = "horse.jpg"
     img = Image.open(path).convert("RGB")
-    img = Cutout(1, 5).transform(img)
+    img = img.resize((32, 32))
+    img = transforms.RandomCrop(32, padding=4, fill=(128,)*4)(img)
+    img = transforms.RandomHorizontalFlip()(img)
     img.save("transformed.png")
+
+    # transform = transforms.Compose([
+    #     transforms.RandomCrop(32, padding=4),
+    #     transforms.RandomHorizontalFlip(),
+    #     # CutoutDefault(),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    # ])
+
