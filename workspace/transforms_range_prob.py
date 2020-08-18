@@ -285,7 +285,7 @@ def augment_list():  # 16 oeprations and their ranges
 
     # https://github.com/tensorflow/tpu/blob/8462d083dd89489a79e3200bcc8d4063bf362186/models/official/efficientnet/autoaugment.py#L505
     l = [
-        Identity,
+        # Identity,
         AutoContrast,
         Equalize,
         Invert,

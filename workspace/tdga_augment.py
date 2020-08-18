@@ -183,6 +183,7 @@ def ind_to_subpolicy(individual, transform_candidates, allele_max, mag):  # indi
     subpolicy = []
     for allele, op in zip(individual, transform_candidates):
         if allele:
+            # subpolicy.append(op(prob=1 / sum(individual), mag=mag))
             subpolicy.append(op(prob=1/len(transform_candidates), mag=mag))
 
     subpolicy = transforms.Compose([
@@ -290,6 +291,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         subpolicy = []
         for allele, op in zip(ind, transform_candidates):
             if allele:
+                # subpolicy.append(op(prob=1/sum(ind), mag=args.mag))
                 subpolicy.append(op(prob=1/len(transform_candidates), mag=args.mag))
         subpolicy = transforms.Compose([
             ## baseline augmentation

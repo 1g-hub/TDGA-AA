@@ -13,6 +13,7 @@ import torch.nn.init as init
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Subset
+from torch.utils.data.dataset import ConcatDataset
 import collections
 import pickle as cp
 from models import *
@@ -174,10 +175,10 @@ def parse_args(kwargs):
     kwargs['ind_train_epochs'] = kwargs['ind_train_epochs'] if 'ind_train_epochs' in kwargs else 120
     kwargs['warmup'] = kwargs['warmup'] if 'warmup' in kwargs else False
     kwargs['auto_augment'] = kwargs['auto_augment'] if 'auto_augment' in kwargs else False
-    kwargs['auto_augment_ind_train'] =kwargs['auto_augment_ind_train'] if 'auto_augment_ind_train' in kwargs else False
+    kwargs['auto_augment_ind_train'] = kwargs['auto_augment_ind_train'] if 'auto_augment_ind_train' in kwargs else False
     kwargs['rand_augment'] = kwargs['rand_augment'] if 'rand_augment' in kwargs else False
     kwargs['augment_path'] = kwargs['augment_path'] if 'augment_path' in kwargs else None
-    kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 10  # [0, 30]
+    kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 5  # [0, 30]
     kwargs['tinit'] = kwargs['tinit'] if 'tinit' in kwargs else 0.05
     kwargs['tfin'] = kwargs['tfin'] if 'tfin' in kwargs else 0.05
 
@@ -199,8 +200,11 @@ def select_model(args):
         net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=args.num_classes)
     elif args.network == "wresnet28_10":
         net = WideResNet(depth=28, widen_factor=10, dropout_rate=0.0, num_classes=args.num_classes)
-    elif args.network == "RegNetX_200MF":
+    elif args.network == "regnetX_200MF":
         net = RegNetX_200MF()
+    elif args.network == "pyramidnet":  # cifer-10でのみ使う
+        net = PyramidNet('cifar10', depth=272, alpha=200, num_classes=args.num_classes,
+                         bottleneck=True)  # originally depth=272 alpha=200
     else:  # cifer10以外のデータセットを使う場合はクラス数の指定に注意
         net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=args.num_classes)
 
@@ -258,14 +262,14 @@ def get_train_transform(args, model, log_dir=None):
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
-            RandAugment(n=1, m=4),
+            RandAugment(n=2, m=14),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            CutoutDefault(length=16),
+            # CutoutDefault(length=16),
         ])
 
     elif args.auto_augment:
-        assert args.dataset == 'cifar10'
+        assert args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset
 
         from tdga_augment import tdga_augment
         if args.augment_path:
@@ -288,13 +292,18 @@ def get_train_transform(args, model, log_dir=None):
             transform = tdga_augment(args, log_dir=log_dir)
             if log_dir:
                 cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
-    elif args.dataset == 'cifar10':
+    elif args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset:
+        if args.dataset == 'cifar10' or args.dataset == 'svhn':
+            MEAN, STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+        elif args.dataset == 'cifar100':
+            MEAN, STD = (0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)
+
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            CutoutDefault(length=16),
+            transforms.Normalize(MEAN, STD),
+            # CutoutDefault(length=16),
         ])
 
     elif args.dataset == 'imagenet':
@@ -315,7 +324,7 @@ def get_train_transform(args, model, log_dir=None):
 
 
 def get_test_transform(args, model):
-    if args.dataset == 'cifar10':
+    if args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset:
         val_transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
@@ -337,7 +346,13 @@ def get_test_transform(args, model):
 def split_dataset(args, dataset, k):
     # load dataset
     X = list(range(len(dataset)))
-    Y = dataset.targets
+
+    if 'cifar' in args.dataset:
+        Y = dataset.targets
+    elif 'svhn' in args.dataset:
+        Y = dataset.labels
+    else:
+        raise Exception('Unknown dataset')
 
     # split to k-fold
     assert len(X) == len(Y)
@@ -372,6 +387,76 @@ def get_dataset(args, transform, split='train'):
 
             split_index = cp.load(open(split_path, 'rb'))
             dataset = Subset(dataset, split_index[split])
+
+    elif args.dataset == 'cifar100':
+        train = split in ['train', 'val', 'trainval']
+        dataset = torchvision.datasets.CIFAR100(DATASET_PATH,
+                                                train=train,
+                                                transform=transform,
+                                                download=True
+                                                )
+        if split in ['train', 'val']:
+            split_path = os.path.join(DATASET_PATH,
+                                      'cifar-100-python', 'train_val_index.cp')
+
+            if not os.path.exists(split_path):
+                [train_index], [val_index] = split_dataset(args, dataset, k=1)
+                split_index = {'train': train_index, 'val': val_index}
+                cp.dump(split_index, open(split_path, 'wb'))
+
+            split_index = cp.load(open(split_path, 'rb'))
+            dataset = Subset(dataset, split_index[split])
+
+    elif args.dataset == 'svhn-core':
+        train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
+        dataset = torchvision.datasets.SVHN(os.path.join(DATASET_PATH, 'svhn-core-python'),
+                                            split=train,
+                                            transform=transform,
+                                            download=True
+                                            )
+        if split in ['train', 'val']:
+            split_path = os.path.join(DATASET_PATH,
+                                      'svhn-core-python', 'train_val_index.cp')
+
+            if not os.path.exists(split_path):
+                [train_index], [val_index] = split_dataset(args, dataset, k=1)
+                split_index = {'train': train_index, 'val': val_index}
+                cp.dump(split_index, open(split_path, 'wb'))
+
+            split_index = cp.load(open(split_path, 'rb'))
+            dataset = Subset(dataset, split_index[split])
+
+    # elif args.dataset == 'svhn-full':
+    #     train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
+    #     if train == 'train':
+    #         trainset = torchvision.datasets.SVHN(os.path.join(DATASET_PATH, 'svhn-full-python'),
+    #                                              split=train,
+    #                                              transform=transform,
+    #                                              download=True
+    #                                              )
+    #         extraset = torchvision.datasets.SVHN(os.path.join(DATASET_PATH, 'svhn-full-python'),
+    #                                              split='extra',
+    #                                              transform=transform,
+    #                                              download=True
+    #                                              )
+    #         dataset = ConcatDataset([trainset, extraset])
+    #     else:
+    #         dataset = torchvision.datasets.SVHN(DATASET_PATH,
+    #                                             split=train,
+    #                                             transform=transform,
+    #                                             download=True
+    #                                             )
+    #     if split in ['train', 'val']:
+    #         split_path = os.path.join(DATASET_PATH,
+    #                                   'svhn-full-python', 'train_val_index.cp')
+    #
+    #         if not os.path.exists(split_path):
+    #             [train_index], [val_index] = split_dataset(args, dataset, k=1)
+    #             split_index = {'train': train_index, 'val': val_index}
+    #             cp.dump(split_index, open(split_path, 'wb'))
+    #
+    #         split_index = cp.load(open(split_path, 'rb'))
+    #         dataset = Subset(dataset, split_index[split])
 
     elif args.dataset == 'imagenet':
         dataset = torchvision.datasets.ImageNet(DATASET_PATH,

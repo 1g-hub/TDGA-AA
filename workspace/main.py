@@ -93,7 +93,6 @@ def main(**kwargs):
                'dog', 'frog', 'horse', 'ship', 'truck')
 
     if device == 'cuda':
-        net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
 
     # Training
@@ -210,13 +209,13 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
-    # l = []
-    # N = 5
-    # for _ in range(N):
-    #     l.append(fire.Fire(main)[1])
-    # print(l)
-    # ave = sum(l)/N
-    # print(ave)
-    # s = sum((x-ave)**2 for x in l)/N
-    # print(s**0.5)
+    # fire.Fire(main)
+    l = []
+    N = 5
+    for _ in range(N):
+        l.append(fire.Fire(main)[1])
+    print(l)
+    ave = sum(l)/N
+    print(ave)
+    s = sum((x-ave)**2 for x in l)/N
+    print(s**0.5)
