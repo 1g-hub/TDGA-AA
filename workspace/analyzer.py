@@ -13,13 +13,6 @@ class Analyzer:
     def add_pop(self, pop):
         self.populations.append(pop)
 
-    def add_stat(self, max_val, min_val, mean_val, optimum_val=None):
-        self.max.append(max_val)
-        self.min.append(min_val)
-        self.mean.append(mean_val)
-        if optimum_val:
-            self.optimum.append(optimum_val)
-
     def make_entropy_matrix_(self):
         N_gen = len(self.populations)
         Np = len(self.populations[0])
@@ -44,6 +37,25 @@ class Analyzer:
         matrix = self.entropy_matrix
         X1, X2 = np.mgrid[1:len(matrix)+1, 1:len(matrix[0])+1]
 
+        l = [
+            "AutoContrast",
+            "Equalize",
+            "Invert",
+            "Rotate",
+            "Posterize",
+            "Solarize",
+            "SolarizeAdd",
+            "Color",
+            "Contrast",
+            "Brightness",
+            "Sharpness",
+            "ShearX",
+            "ShearY",
+            "Cutout",
+            "TranslateX",
+            "TranslateY",
+        ]
+
         fig = plt.figure()
         ax = Axes3D(fig)
         ax.set_xlabel("Generation")
@@ -51,7 +63,36 @@ class Analyzer:
         ax.set_zlabel("Entropy")
         ax.view_init(elev=30, azim=-20)
         ax.plot_surface(X1, X2, matrix, rcount=1000, ccount=1000, cmap='cividis', antialiased=True)
+
+        # plt.yticks(range(1, len(matrix[0]) + 1), l)
+        # plt.yticks(rotation=-60)
+
         plt.savefig(file_name)
+
+        # fig = plt.figure()
+        # X = np.linspace(1, 16, 16)
+        # Y_num = np.array([39, 29, 15, 30, 5, 8, 16, 39, 27, 30, 35, 38, 36, 37, 40, 39]) # t:0.02
+        # # Y_num = np.array([36, 0, 0, 1, 0, 0, 0, 24, 0, 1, 15, 25, 24, 7, 0, 0])  # t:0.002
+        # Y_entropy = matrix[-1]
+        #
+        # fig, ax1 = plt.subplots()
+        # ax2 = ax1.twinx()
+        # ax1.plot(X, Y_entropy, linewidth=2, color="red", linestyle="solid", marker="o", markersize=8, label='Entropy')
+        # ax2.bar(X, Y_num, label='Number of operations')
+        # ax1.set_zorder(2)
+        # ax2.set_zorder(1)
+        # ax1.patch.set_alpha(0)
+        # ax1.legend(bbox_to_anchor=(0, 1), loc='upper left', borderaxespad=0.5, fontsize=10)
+        # ax2.legend(bbox_to_anchor=(0, 0.9), loc='upper left', borderaxespad=0.5, fontsize=10)
+        # ax1.set_xlabel('Operation')
+        # ax1.set_xticklabels(X, rotation=90)
+        # ax1.set_ylabel('entropy')
+        # ax2.set_ylabel('Number of operations')
+        #
+        # plt.xticks(range(1, 17), l)
+        # plt.xticks(rotation=-90)
+        # plt.tight_layout()
+        # plt.savefig("num_transforms_t002.png")
 
     def plot_stats(self, file_name, optimum_val=None):
         pop_max = []

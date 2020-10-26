@@ -30,3 +30,25 @@ If you want use GPUs, install [nvidia-drivers](https://github.com/NVIDIA/nvidia-
 $ make bash
 ```
 
+#### Example
+```
+$ python main.py --auto_augment=true --mag=5 --tinit=0.02 --tfin=0.02 --prob_mul=2
+```
+
+#### Main Argment
+
+- dataset
+- network
+- lr
+- weight_decay
+- seed
+- batch_size
+- epochs
+- pre_train_epochs
+- auto_augment
+- mag
+- tinit, tfin
+- B
+- Np
+- Ng
+- prob_mul

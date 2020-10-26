@@ -14,7 +14,7 @@ from analyzer import Analyzer
 import numpy as np
 
 from torch.utils.data import Subset
-from sklearn.model_selection import StratifiedShuffleSplit
+from datetime import datetime
 
 # from transforms import *
 
@@ -76,7 +76,7 @@ def train_child(args, net, dataset, subset_indx):
         net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
 
-    for epoch in range(args.epochs):
+    for epoch in range(args.pre_train_epochs):
         print('\nEpoch: %d' % epoch)
         net.train()
         train_loss = 0
@@ -179,12 +179,12 @@ def search_subpolicies(args, transform_candidates, child_model, dataset, Da_indx
     return subpolicies
 
 
-def ind_to_subpolicy(individual, transform_candidates, allele_max, mag):  # individual から subpolicy に変換する
+def ind_to_subpolicy(args, individual, transform_candidates, allele_max, mag):  # individual から subpolicy に変換する
     subpolicy = []
     for allele, op in zip(individual, transform_candidates):
         if allele:
             # subpolicy.append(op(prob=1 / sum(individual), mag=mag))
-            subpolicy.append(op(prob=1/len(transform_candidates), mag=mag))
+            subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=mag))
 
     subpolicy = transforms.Compose([
         *subpolicy,
@@ -194,11 +194,7 @@ def ind_to_subpolicy(individual, transform_candidates, allele_max, mag):  # indi
     return subpolicy
 
 
-global_step = 0  # 探索を何回したか
-
-
 def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir):
-    global global_step
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
@@ -209,7 +205,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     def evaluate_ind(individual):
-        subpolicy = ind_to_subpolicy(individual, transform_candidates, allele_max, args.mag)
+        subpolicy = ind_to_subpolicy(args, individual, transform_candidates, allele_max, args.mag)
         return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
 
     toolbox.register("evaluate", evaluate_ind)
@@ -225,8 +221,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     # toolbox.register("mutate", mutChangeBit, indpb=0.06)
     toolbox.register("mutate", tools.mutFlipBit, indpb=0.06)
 
-    Np = 64
-    Ngen = 50
+    Np = args.Np
+    Ngen = args.Ng
     t_init = args.tinit
     t_fin = args.tfin
     tds = ThermoDynamicalSelection(Np=Np, t_init=t_init, t_fin=t_fin, Ngen=Ngen, is_compress=False)
@@ -249,7 +245,6 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         offspring = list(map(toolbox.clone, pop))
 
         for ind1, ind2 in zip(offspring[::2], offspring[1::2]):
-
             if random.random() < CXPB:
                 toolbox.mate(ind1, ind2)
                 del ind1.fitness.values
@@ -279,8 +274,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
 
         # fits = [ind.fitness.values[0] for ind in pop]
     os.makedirs(os.path.join(log_dir, 'figures'), exist_ok=True)
-    analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy_{}.png'.format(global_step)))
-    analizer.plot_stats(file_name=os.path.join(log_dir, 'figures/stats_{}.png'.format(global_step)))
+    analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy.png'))
+    analizer.plot_stats(file_name=os.path.join(log_dir, 'figures/stats.png'))
     subpolicies = []
     print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
@@ -292,7 +287,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         for allele, op in zip(ind, transform_candidates):
             if allele:
                 # subpolicy.append(op(prob=1/sum(ind), mag=args.mag))
-                subpolicy.append(op(prob=1/len(transform_candidates), mag=args.mag))
+                subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=args.mag))
         subpolicy = transforms.Compose([
             ## baseline augmentation
             transforms.RandomCrop(32, padding=4),
@@ -306,34 +301,38 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         ])
         subpolicies.append((subpolicy, ind.fitness.values[0]))
     with open(os.path.join(log_dir, 'subpolicies.txt'), mode='a', encoding="utf_8") as f:
-        f.writelines("Search Phase {}\n".format(global_step))
         for subpolicy in subpolicies:
             f.writelines(str(subpolicy) + "\n")
         f.write("\n")
     print(subpolicies)
 
-    global_step += 1
     return subpolicies
 
 
-def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates, B, log_dir):
+def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates, log_dir):
     kwargs = json.loads(args_str)
     args, kwargs = parse_args(kwargs)
     _transform = []
 
     print('[+] Pre-Training strated')
+    pre_start = datetime.now()
+    print('num of sub-policies:', args.B)
 
     # train child model
     child_model = copy.deepcopy(model)
     train_res = train_child(args, child_model, dataset, Dm_indx)
 
+    print("GA Search Started")
+    ga_start = datetime.now()
     # search sub policy
-    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir)
-
+    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, args.B, log_dir)
+    finish = datetime.now()
+    print("Pre-Train Elapsed Time: {}".format(ga_start - pre_start))
+    print("Search Elapsed Time: {}".format(finish - ga_start))
     return [subpolicy[0] for subpolicy in subpolicies]
 
 
-def tdga_augment(args, model, transform_candidates=None, B=16, log_dir=None):
+def tdga_augment(args, model, transform_candidates=None, log_dir=None):
     args_str = json.dumps(args._asdict())
     dataset = get_dataset(args, None, 'trainval')
 
@@ -344,7 +343,11 @@ def tdga_augment(args, model, transform_candidates=None, B=16, log_dir=None):
 
     # split
     Dm_indexes, Da_indexes = split_dataset(args, dataset, 1)  # train_dataとval_dataを分割
-    transform = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, B, log_dir)
+    # Dm_indexes = [list(range(4000))]
+    # Da_indexes = [list(range(500))]
+    # print(Dm_indexes)
+    # print(type(Dm_indexes))
+    transform = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, log_dir)
 
     transform = transforms.RandomChoice(transform)
 

@@ -7,6 +7,7 @@ import torch.backends.cudnn as cudnn
 
 import torchvision
 import torchvision.transforms as transforms
+from torchvision.utils import save_image
 from warmup_scheduler import GradualWarmupScheduler
 import os
 import time
@@ -14,7 +15,8 @@ import json
 from pprint import pprint
 import random
 from torch.utils.tensorboard import SummaryWriter
-
+from PIL import Image
+from torchvision.transforms.functional import to_pil_image
 from utils import progress_bar, parse_args, get_model_name, select_model, select_optimizer, select_scheduler, \
     get_train_transform, get_test_transform, get_dataset
 from datetime import datetime
@@ -74,12 +76,13 @@ def main(**kwargs):
     transform_train = get_train_transform(args, net, log_dir)
     transform_val = get_test_transform(args, net)
     transform_test = get_test_transform(args, net)
+    trainset = get_dataset(args, transform_train, args.train_split)
 
-    trainset = get_dataset(args, transform_train, 'train')
+    # save_image(trainset[0][0], "tmp/rand.png")
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    valset = get_dataset(args, transform_test, 'val')
+    valset = get_dataset(args, transform_val, 'val')
     valloader = torch.utils.data.DataLoader(
         valset, batch_size=100, shuffle=False, num_workers=args.num_workers)
 
@@ -105,7 +108,10 @@ def main(**kwargs):
         total_steps = len(trainloader)
 
         for batch_idx, (inputs, targets) in enumerate(trainloader):
+            # if batch_idx == 0:
+            #     save_image(inputs[0], "tmp/{}.png".format(epoch))
             inputs, targets = inputs.to(device), targets.to(device)
+
             optimizer.zero_grad()
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -163,7 +169,10 @@ def main(**kwargs):
 
         return acc
 
+    best_test_acc = 0
+
     def test(epoch):
+        nonlocal best_test_acc
         net.eval()
         test_loss = 0
         correct = 0
@@ -186,6 +195,7 @@ def main(**kwargs):
         writer.add_scalar('test/loss', test_loss/(batch_idx+1), global_step=epoch)
 
         acc = 100.*correct/total
+        best_test_acc = max(best_test_acc, acc)
 
         return acc
 
@@ -204,8 +214,9 @@ def main(**kwargs):
     print("Train Finished at {}".format(finish))
     print("Elapsed Time: {}".format(finish - start))
     print("val best_accuracy:", best_acc)
+    print("test best accuracy:", best_test_acc)
 
-    return best_acc, test_last_acc
+    return best_acc, test_last_acc, best_test_acc
 
 
 if __name__ == "__main__":

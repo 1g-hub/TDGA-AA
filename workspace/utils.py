@@ -17,7 +17,7 @@ from torch.utils.data.dataset import ConcatDataset
 import collections
 import pickle as cp
 from models import *
-from transforms_range import *
+from transforms_range_prob import *
 
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -165,6 +165,7 @@ def parse_args(kwargs):
     kwargs['network'] = kwargs['network'] if 'network' in kwargs else 'wresnet28_2'
     kwargs['optimizer'] = kwargs['optimizer'] if 'optimizer' in kwargs else 'sgd'
     kwargs['lr'] = kwargs['lr'] if 'lr' in kwargs else 0.1
+    kwargs['weight_decay'] = kwargs['weight_decay'] if 'weight_decay' in kwargs else 5e-4
     kwargs['seed'] = kwargs['seed'] if 'seed' in kwargs else None
     kwargs['use_cuda'] = kwargs['use_cuda'] if 'use_cuda' in kwargs else True
     kwargs['use_cuda'] = kwargs['use_cuda'] and torch.cuda.is_available()
@@ -173,6 +174,7 @@ def parse_args(kwargs):
     kwargs['batch_size'] = kwargs['batch_size'] if 'batch_size' in kwargs else 128
     kwargs['epochs'] = kwargs['epochs'] if 'epochs' in kwargs else 200
     kwargs['ind_train_epochs'] = kwargs['ind_train_epochs'] if 'ind_train_epochs' in kwargs else 120
+    kwargs['pre_train_epochs'] = kwargs['pre_train_epochs'] if 'pre_train_epochs' in kwargs else 200
     kwargs['warmup'] = kwargs['warmup'] if 'warmup' in kwargs else False
     kwargs['auto_augment'] = kwargs['auto_augment'] if 'auto_augment' in kwargs else False
     kwargs['auto_augment_ind_train'] = kwargs['auto_augment_ind_train'] if 'auto_augment_ind_train' in kwargs else False
@@ -181,6 +183,11 @@ def parse_args(kwargs):
     kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 5  # [0, 30]
     kwargs['tinit'] = kwargs['tinit'] if 'tinit' in kwargs else 0.05
     kwargs['tfin'] = kwargs['tfin'] if 'tfin' in kwargs else 0.05
+    kwargs['B'] = kwargs['B'] if 'B' in kwargs else 16
+    kwargs['Np'] = kwargs['Np'] if 'Np' in kwargs else 64
+    kwargs['Ng'] = kwargs['Ng'] if 'Ng' in kwargs else 30
+    kwargs['train_split'] = kwargs['train_split'] if 'train_split' in kwargs else 'train'
+    kwargs['prob_mul'] = kwargs['prob_mul'] if 'prob_mul' in kwargs else 1
 
     # to named tuple
     args = dict_to_namedtuple(kwargs)
@@ -200,31 +207,11 @@ def select_model(args):
         net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=args.num_classes)
     elif args.network == "wresnet28_10":
         net = WideResNet(depth=28, widen_factor=10, dropout_rate=0.0, num_classes=args.num_classes)
-    elif args.network == "regnetX_200MF":
-        net = RegNetX_200MF()
-    elif args.network == "pyramidnet":  # cifer-10でのみ使う
+    elif args.network == "pyramidnet":  # only for cifer-10
         net = PyramidNet('cifar10', depth=272, alpha=200, num_classes=args.num_classes,
                          bottleneck=True)  # originally depth=272 alpha=200
-    else:  # cifer10以外のデータセットを使う場合はクラス数の指定に注意
+    else:
         net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=args.num_classes)
-
-    # net = VGG('VGG19')
-    # net = ResNet18()
-    # net = PreActResNet18()
-    # net = GoogLeNet()
-    # net = DenseNet121()
-    # net = ResNeXt29_2x64d()
-    # net = MobileNet()
-    # net = MobileNetV2()
-    # net = DPN92()
-    # net = ShuffleNetG2()
-    # net = SENet18()
-    # net = ShuffleNetV2(1)
-    # net = EfficientNetB0()
-    # net = RegNetX_200MF()
-    # net = PyramidNet('cifar10', depth=116, alpha=200, num_classes=10, bottleneck=True)  # originally depth=272
-    # net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=10)  # 'wresnet28_2or10'
-    # net = WideResNet(depth=40, widen_factor=2, dropout_rate=0.0, num_classes=10)  # 'wresnet40_2'
 
     return net
 
@@ -232,7 +219,7 @@ def select_model(args):
 def select_optimizer(args, net):
     if args.optimizer == 'sgd':
         optimizer = torch.optim.SGD(net.parameters(), lr=args.lr,
-                                    momentum=0.9, weight_decay=5e-4)
+                                    momentum=0.9, weight_decay=args.weight_decay)
     elif args.optimizer == 'rms':
         # optimizer = torch.optim.RMSprop(model.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=1e-5)
         optimizer = torch.optim.RMSprop(net.parameters(), lr=args.lr)
@@ -262,10 +249,10 @@ def get_train_transform(args, model, log_dir=None):
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
-            RandAugment(n=2, m=14),
+            RandAugment(n=1, m=args.mag),
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            # CutoutDefault(length=16),
+            CutoutDefault(length=16),
         ])
 
     elif args.auto_augment:
@@ -293,7 +280,7 @@ def get_train_transform(args, model, log_dir=None):
             if log_dir:
                 cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
     elif args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset:
-        if args.dataset == 'cifar10' or args.dataset == 'svhn':
+        if args.dataset == 'cifar10' or 'svhn' in args.dataset:
             MEAN, STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
         elif args.dataset == 'cifar100':
             MEAN, STD = (0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)

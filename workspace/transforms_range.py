@@ -49,8 +49,8 @@ class TranslateX:  # [-150, 150] => percentage: [-0.45, 0.45]
     def __call__(self, img):
         if random.random() > 0.5:
             self.val = -self.val
-        self.val = self.val * img.size[0]
-        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, self.val, 0, 1, 0))
+        v = self.val * img.size[0]
+        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, v, 0, 1, 0))
 
     def __repr__(self):
         return '%s(magnitude=%.2f)' % \
@@ -82,8 +82,8 @@ class TranslateY:  # [-150, 150] => percentage: [-0.45, 0.45]
     def __call__(self, img):
         if random.random() > 0.5:
             self.val = -self.val
-        self.val = self.val * img.size[1]
-        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, 0, 0, 1, self.val))
+        v = self.val * img.size[1]
+        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, 0, 0, 1, v))
 
     def __repr__(self):
         return '%s(magnitude=%.2f)' % \
@@ -402,8 +402,8 @@ def augment_list():  # 16 oeprations and their ranges
         ShearX,
         ShearY,
         CutoutAbs,
-        TranslateXabs,
-        TranslateYabs,
+        TranslateX,
+        TranslateY,
     ]
 
     return l

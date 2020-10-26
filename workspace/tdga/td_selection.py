@@ -60,7 +60,7 @@ class ThermoDynamicalSelection:
         if self.scheduler_:
             self.temperature = self.scheduler_(self.temperature)
         else:  # T = Tmax^(1-t)*Tmin^(t)
-            assert self.t_fin != None and self.Ngen, "set the t_fin and Ngen value when scheduler is not specified"
+            assert self.t_fin is not None and self.Ngen, "set the t_fin and Ngen value when scheduler is not specified"
             assert self.t_fin != 0, "cannot set t_fin value to 0"
             t = self.generation/self.Ngen
             self.temperature = pow(self.t_init, 1-t) * pow(self.t_fin, t)

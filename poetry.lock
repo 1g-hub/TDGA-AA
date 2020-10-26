@@ -403,10 +403,6 @@ version = "3.1.0"
 docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
-[metadata]
-content-hash = "9c3ecf8218be0883c67ecc8c2cdc3971260eb8a8d4777fa20806a7adc4f0d8c1"
-python-versions = "^3.6"
-
 [metadata.files]
 absl-py = [
     {file = "absl-py-0.9.0.tar.gz", hash = "sha256:75e737d6ce7723d9ff9b7aa1ba3233c34be62ef18d5859e706b8fdc828989830"},

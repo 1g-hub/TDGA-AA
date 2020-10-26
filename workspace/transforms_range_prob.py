@@ -58,8 +58,8 @@ class TranslateX(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
     def transform(self, img):
         if random.random() > 0.5:
             self.val = -self.val
-        self.val = self.val * img.size[0]
-        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, self.val, 0, 1, 0))
+        v = self.val * img.size[0]
+        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, v, 0, 1, 0))
 
 
 class TranslateXabs(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
@@ -79,8 +79,8 @@ class TranslateY(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
     def transform(self, img):
         if random.random() > 0.5:
             self.val = -self.val
-        self.val = self.val * img.size[1]
-        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, 0, 0, 1, self.val))
+        v = self.val * img.size[1]
+        return img.transform(img.size, PIL.Image.AFFINE, (1, 0, 0, 0, 1, v))
 
 
 class TranslateYabs(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
@@ -211,7 +211,7 @@ class Cutout(BaseTransform):  # [0, 60] => percentage: [0, 0.2]
 
 class CutoutAbs(BaseTransform):  # [0, 60] => percentage: [0, 0.2]
     minval = 0
-    maxval = 40
+    maxval = 20
 
     def transform(self, img):
         if self.val < 0:
@@ -300,8 +300,8 @@ def augment_list():  # 16 oeprations and their ranges
         ShearX,
         ShearY,
         CutoutAbs,
-        TranslateXabs,
-        TranslateYabs,
+        TranslateX,
+        TranslateY,
     ]
 
     return l
@@ -344,7 +344,7 @@ class RandAugment:
     def __call__(self, img):
         ops = random.choices(self.augment_list, k=self.n)
         for op in ops:
-            img = op(self.m)(img)
+            img = op(1, self.m)(img)
 
         return img
 
@@ -355,7 +355,7 @@ class RandAugment:
 if __name__ == '__main__':
     l = augment_list()
     # l = [CutoutDefault]
-    path = "horse.jpg"
+    path = "plane.png"
     import os
     os.makedirs("transform_test/", exist_ok=True)
     img = Image.open(path).convert("RGB")
