@@ -49,12 +49,27 @@ def train_child(args, net, dataset, subset_indx):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     optimizer = select_optimizer(args, net)
     scheduler = select_scheduler(args, optimizer)
-    criterion = nn.CrossEntropyLoss()
 
-    dataset.transform = transforms.Compose([
-        transforms.Resize(32),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
+    if args.dataset == "comic":
+        weights = []
+        for title in sorted(os.listdir("./data/comic/")):
+            title_path = os.path.join("./data/comic/", title)
+            weights.append(1/len(os.listdir(title_path)))  # データの逆数
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor(weights).to(device))
+    else:
+        criterion = nn.CrossEntropyLoss()
+
+    if args.dataset == "comic":
+        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        dataset.transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(MEAN, STD),
+        ])
+    else:
+        dataset.transform = transforms.Compose([
+            transforms.Resize(32),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
 
     subset = Subset(dataset, subset_indx)
     trainloader = torch.utils.data.DataLoader(
@@ -186,11 +201,18 @@ def ind_to_subpolicy(args, individual, transform_candidates, allele_max, mag):  
             # subpolicy.append(op(prob=1 / sum(individual), mag=mag))
             subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=mag))
 
-    subpolicy = transforms.Compose([
-        *subpolicy,
-        transforms.Resize(32),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
+    if args.dataset == "comic":
+        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        subpolicy = transforms.Compose([
+            *subpolicy,
+            transforms.ToTensor(),
+            transforms.Normalize(MEAN, STD), ])
+    else:
+        subpolicy = transforms.Compose([
+            *subpolicy,
+            transforms.Resize(32),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)), ])
     return subpolicy
 
 
@@ -288,17 +310,31 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
             if allele:
                 # subpolicy.append(op(prob=1/sum(ind), mag=args.mag))
                 subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=args.mag))
-        subpolicy = transforms.Compose([
-            ## baseline augmentation
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            ## policy
-            *subpolicy,
-            ## to tensor
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            CutoutDefault(length=16),
-        ])
+
+        if args.dataset == "comic":
+            MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+            subpolicy = transforms.Compose([
+                ## baseline augmentation
+                transforms.RandomHorizontalFlip(),
+                ## policy
+                *subpolicy,
+                ## to tensor
+                transforms.ToTensor(),
+                transforms.Normalize(MEAN, STD),
+                CutoutDefault(length=32),
+            ])
+        else:
+            subpolicy = transforms.Compose([
+                ## baseline augmentation
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                ## policy
+                *subpolicy,
+                ## to tensor
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                CutoutDefault(length=16),
+            ])
         subpolicies.append((subpolicy, ind.fitness.values[0]))
     with open(os.path.join(log_dir, 'subpolicies.txt'), mode='a', encoding="utf_8") as f:
         for subpolicy in subpolicies:
@@ -345,7 +381,8 @@ def tdga_augment(args, model, transform_candidates=None, log_dir=None):
     Dm_indexes, Da_indexes = split_dataset(args, dataset, 1)  # train_dataとval_dataを分割
     # Dm_indexes = [list(range(4000))]
     # Da_indexes = [list(range(500))]
-    # print(Dm_indexes)
+    # print(len(Dm_indexes[0]))
+    # print(len(Da_indexes[0]))
     # print(type(Dm_indexes))
     transform = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, log_dir)
 

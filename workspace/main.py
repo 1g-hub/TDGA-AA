@@ -66,7 +66,15 @@ def main(**kwargs):
                     total_epoch=5,
                     after_scheduler=scheduler
                 )
-    criterion = nn.CrossEntropyLoss()
+
+    if args.dataset == "comic":
+        weights = []
+        for title in sorted(os.listdir("./data/comic/")):
+            title_path = os.path.join("./data/comic/", title)
+            weights.append(1/len(os.listdir(title_path)))  # データの逆数
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor(weights).to(device))
+    else:
+        criterion = nn.CrossEntropyLoss()
     if args.use_cuda:
         net = net.cuda()
         criterion = criterion.cuda()

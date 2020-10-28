@@ -53,7 +53,7 @@ class ShearY(BaseTransform):  # [-0.3, 0.3]
 
 class TranslateX(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
     minval = 0
-    maxval = 0.33
+    maxval = 0.45
 
     def transform(self, img):
         if random.random() > 0.5:
@@ -74,7 +74,7 @@ class TranslateXabs(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
 
 class TranslateY(BaseTransform):  # [-150, 150] => percentage: [-0.45, 0.45]
     minval = 0
-    maxval = 0.33
+    maxval = 0.45
 
     def transform(self, img):
         if random.random() > 0.5:

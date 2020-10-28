@@ -14,6 +14,8 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Subset
 from torch.utils.data.dataset import ConcatDataset
+from comic_dataset import ComicDataset
+from fourscene_dataset import FourSceneDataset
 import collections
 import pickle as cp
 from models import *
@@ -256,7 +258,7 @@ def get_train_transform(args, model, log_dir=None):
         ])
 
     elif args.auto_augment:
-        assert args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset
+        assert args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset or args.dataset == "comic"
 
         from tdga_augment import tdga_augment
         if args.augment_path:
@@ -302,6 +304,14 @@ def get_train_transform(args, model, log_dir=None):
             transforms.ToTensor()
         ])
 
+    elif args.dataset == "comic":
+        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(MEAN, STD),
+            # CutoutDefault(length=32),
+        ])
     else:
         raise Exception('Unknown Dataset')
 
@@ -324,6 +334,12 @@ def get_test_transform(args, model):
             transforms.ToTensor()
         ])
 
+    elif args.dataset == "comic":
+        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        val_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(MEAN, STD),
+        ])
     else:
         raise Exception('Unknown Dataset')
 
@@ -338,6 +354,8 @@ def split_dataset(args, dataset, k):
         Y = dataset.targets
     elif 'svhn' in args.dataset:
         Y = dataset.labels
+    elif args.dataset == "comic":
+        Y = dataset.targets
     else:
         raise Exception('Unknown dataset')
 
@@ -412,6 +430,20 @@ def get_dataset(args, transform, split='train'):
 
             split_index = cp.load(open(split_path, 'rb'))
             dataset = Subset(dataset, split_index[split])
+
+    elif args.dataset == 'comic':
+        train = split
+        dataset = ComicDataset(os.path.join(DATASET_PATH, 'comic'),
+                               split=train,
+                               transform=transform
+                               )
+
+    elif args.dataset == 'fourscene-comic':
+        train = split
+        dataset = FourSceneDataset(os.path.join(DATASET_PATH, 'comic'),
+                                   split=train,
+                                   transform=transform
+                                   )
 
     # elif args.dataset == 'svhn-full':
     #     train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
