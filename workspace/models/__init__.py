@@ -16,3 +16,4 @@ from .efficientnet import *
 from .regnet import *
 from .PyramidNet import PyramidNet
 from .wideresnet import WideResNet
+from .lstm_four_scene import LSTMFourScene

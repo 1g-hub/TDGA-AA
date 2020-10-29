@@ -11,7 +11,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class FourSceneDataset(Dataset):
-    def __init__(self, root, split="trainval", transform=None):
+    def __init__(self, root, split="train", transform=None):
         self.stories = []
         self.targets = []
         self.transform = transform
@@ -31,11 +31,11 @@ class FourSceneDataset(Dataset):
                 story_0.append(pil_img)
 
                 if idx % 4 == 3:
-                    if split == "trainval" and idx//4 <= int(num_data*0.9):
+                    if split == "train" and idx//4 <= int(num_data*0.9):
                         self.stories.append(story_0)
                         self.targets.append(0)
 
-                    elif split != "trainval" and idx//4 > int(num_data*0.9):
+                    elif split != "train" and idx//4 > int(num_data*0.9):
                         self.stories.append(story_0)
                         self.targets.append(0)
 
@@ -46,17 +46,16 @@ class FourSceneDataset(Dataset):
                 story_1.append(pil_img)
 
                 if idx % 4 == 3:
-                    other_img = random.choice(img_list[(idx+4) % num_data])
+                    other_img = img_list[(idx+4) % num_data]  # 次の画像
                     other_img_path = os.path.join(title_path, other_img)
                     other_pli_img = Image.open(other_img_path)
                     story_1[-1] = other_pli_img
 
-
-                    if split == "trainval" and idx // 4 <= int(num_data * 0.9):
+                    if split == "train" and idx // 4 <= int(num_data * 0.9):
                         self.stories.append(story_1)
                         self.targets.append(1)
 
-                    elif split != "trainval" and idx // 4 > int(num_data * 0.9):
+                    elif split != "train" and idx // 4 > int(num_data * 0.9):
                         self.stories.append(story_1)
                         self.targets.append(1)
 
@@ -74,11 +73,11 @@ class FourSceneDataset(Dataset):
                     other_title_pil_img = Image.open(other_title_image_path)
                     story_2[-1] = other_title_pil_img
 
-                    if split == "trainval" and idx // 4 <= int(num_data * 0.9):
+                    if split == "train" and idx // 4 <= int(num_data * 0.9):
                         self.stories.append(story_2)
                         self.targets.append(2)
 
-                    elif split != "trainval" and idx // 4 > int(num_data * 0.9):
+                    elif split != "train" and idx // 4 > int(num_data * 0.9):
                         self.stories.append(story_2)
                         self.targets.append(2)
 
@@ -87,10 +86,13 @@ class FourSceneDataset(Dataset):
 
         if self.transform is not None:
             t = random.choice(self.transform.transforms)
-            for i in range(4):
-                story[i] = t[story[i]]
+            if not isinstance(t, list):  # ベース拡張
+                t = self.transform
 
-        return story, target
+            for i in range(4):
+                story[i] = t(story[i])
+                story[i] = story[i].view((1,)+story[i].size())
+        return torch.cat(story, dim=0), target
 
     def __len__(self):
         return len(self.stories)

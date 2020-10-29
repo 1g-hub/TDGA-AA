@@ -215,7 +215,7 @@ def main(**kwargs):
     test_last_acc = 0
     for epoch in range(args.epochs):
         train(epoch)
-        valid(epoch)
+        # valid(epoch)
         test_last_acc = test(epoch)
     print("Train Started at {}".format(start))
     finish = datetime.now()

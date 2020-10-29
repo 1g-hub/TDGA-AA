@@ -182,6 +182,7 @@ def parse_args(kwargs):
     kwargs['auto_augment_ind_train'] = kwargs['auto_augment_ind_train'] if 'auto_augment_ind_train' in kwargs else False
     kwargs['rand_augment'] = kwargs['rand_augment'] if 'rand_augment' in kwargs else False
     kwargs['augment_path'] = kwargs['augment_path'] if 'augment_path' in kwargs else None
+    kwargs['ckpt_path'] = kwargs['ckpt_path'] if 'ckpt_path' in kwargs else None
     kwargs['mag'] = kwargs['mag'] if 'mag' in kwargs else 5  # [0, 30]
     kwargs['tinit'] = kwargs['tinit'] if 'tinit' in kwargs else 0.05
     kwargs['tfin'] = kwargs['tfin'] if 'tfin' in kwargs else 0.05
@@ -205,7 +206,14 @@ def get_model_name(args):
 
 
 def select_model(args):
-    if args.network == "wresnet28_2":
+    if args.dataset == "fourscene-comic":
+        assert args.ckpt_path
+        wrn_model = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=args.num_classes)
+        data = torch.load(args.ckpt_path)
+        wrn_model.load_state_dict(data['net'])
+        wrn_model.eval()
+        net = LSTMFourScene(wrn_model=wrn_model)
+    elif args.network == "wresnet28_2":
         net = WideResNet(depth=28, widen_factor=2, dropout_rate=0.0, num_classes=args.num_classes)
     elif args.network == "wresnet28_10":
         net = WideResNet(depth=28, widen_factor=10, dropout_rate=0.0, num_classes=args.num_classes)
@@ -258,7 +266,7 @@ def get_train_transform(args, model, log_dir=None):
         ])
 
     elif args.auto_augment:
-        assert args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset or args.dataset == "comic"
+        assert args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset or "comic" in args.dataset
 
         from tdga_augment import tdga_augment
         if args.augment_path:
@@ -304,7 +312,7 @@ def get_train_transform(args, model, log_dir=None):
             transforms.ToTensor()
         ])
 
-    elif args.dataset == "comic":
+    elif "comic" in args.dataset:
         MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
         transform = transforms.Compose([
             transforms.RandomHorizontalFlip(),
@@ -334,7 +342,7 @@ def get_test_transform(args, model):
             transforms.ToTensor()
         ])
 
-    elif args.dataset == "comic":
+    elif "comic" in args.dataset:
         MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
         val_transform = transforms.Compose([
             transforms.ToTensor(),
@@ -354,7 +362,7 @@ def split_dataset(args, dataset, k):
         Y = dataset.targets
     elif 'svhn' in args.dataset:
         Y = dataset.labels
-    elif args.dataset == "comic":
+    elif "comic" in args.dataset:
         Y = dataset.targets
     else:
         raise Exception('Unknown dataset')
@@ -432,14 +440,14 @@ def get_dataset(args, transform, split='train'):
             dataset = Subset(dataset, split_index[split])
 
     elif args.dataset == 'comic':
-        train = split
+        train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
         dataset = ComicDataset(os.path.join(DATASET_PATH, 'comic'),
                                split=train,
                                transform=transform
                                )
 
     elif args.dataset == 'fourscene-comic':
-        train = split
+        train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
         dataset = FourSceneDataset(os.path.join(DATASET_PATH, 'comic'),
                                    split=train,
                                    transform=transform
