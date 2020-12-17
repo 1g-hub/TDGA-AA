@@ -100,22 +100,10 @@ ENV/
 # mypy
 .mypy_cache/
 
-# input data, saved log, checkpoints and pretrained models
-data/
-input/
-saved/
-outputs/
-datasets/
-pretrained/
-trained_models/
-
 # editor, os cache directory
 .vscode/
 .idea/
 __MACOSX/
-
-config.json
-config_voc.json
 
 *.png
 *.jpg
@@ -123,6 +111,6 @@ config_voc.json
 *.jpeg
 *.gif
 
-workspace/output
 workspace/runs
+workspace/data
 .DS_Store

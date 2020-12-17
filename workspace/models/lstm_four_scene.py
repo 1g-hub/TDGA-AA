@@ -13,6 +13,12 @@ class LSTMFourScene(nn.Module):
         self.wrn_model = wrn_model  # 特徴抽出部
         for param in self.wrn_model.parameters():  # 特徴抽出部の重みは変更しない
             param.requires_grad = False
+
+        # last_layer = list(self.wrn_model.children())[-3:]  # ファインチューニング用
+        # for l in last_layer:
+        #     for param in l.parameters():
+        #         param.requires_grad = True
+
         self.LSTM = nn.LSTM(input_size=self.wrn_model.nStages[3], hidden_size=self.wrn_model.nStages[3], num_layers=1, batch_first=True, bidirectional=False)
         # self.emb = nn.Linear(self.wrn_model.nStages[3], mid_units)
         # self.out = nn.Linear(mid_units, out_dim)

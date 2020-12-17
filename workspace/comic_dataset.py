@@ -16,15 +16,15 @@ class ComicDataset(Dataset):
         self.targets = []
         self.transform = transform
 
-        for label, title in enumerate(os.listdir(root)):
+        for label, title in enumerate(sorted(os.listdir(root))):
             title_path = os.path.join(root, title)
             for idx, img in enumerate(natsorted(os.listdir(title_path))):
                 img_path = os.path.join(title_path, img)
                 pil_img = Image.open(img_path)
-                if split == "train" and idx <= int(len(os.listdir(title_path))*0.9):
+                if split == "train" and idx < int(len(os.listdir(title_path))*0.9):
                     self.images.append(pil_img)
                     self.targets.append(label)
-                elif split != "train" and idx > int(len(os.listdir(title_path))*0.9):
+                elif split != "train" and idx >= int(len(os.listdir(title_path))*0.9):
                     self.images.append(pil_img)
                     self.targets.append(label)
 
@@ -37,4 +37,3 @@ class ComicDataset(Dataset):
 
     def __len__(self):
         return len(self.images)
-

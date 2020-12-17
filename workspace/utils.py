@@ -175,11 +175,9 @@ def parse_args(kwargs):
     kwargs['scheduler'] = kwargs['scheduler'] if 'scheduler' in kwargs else 'cosine'
     kwargs['batch_size'] = kwargs['batch_size'] if 'batch_size' in kwargs else 128
     kwargs['epochs'] = kwargs['epochs'] if 'epochs' in kwargs else 200
-    kwargs['ind_train_epochs'] = kwargs['ind_train_epochs'] if 'ind_train_epochs' in kwargs else 120
     kwargs['pre_train_epochs'] = kwargs['pre_train_epochs'] if 'pre_train_epochs' in kwargs else 200
     kwargs['warmup'] = kwargs['warmup'] if 'warmup' in kwargs else False
     kwargs['auto_augment'] = kwargs['auto_augment'] if 'auto_augment' in kwargs else False
-    kwargs['auto_augment_ind_train'] = kwargs['auto_augment_ind_train'] if 'auto_augment_ind_train' in kwargs else False
     kwargs['rand_augment'] = kwargs['rand_augment'] if 'rand_augment' in kwargs else False
     kwargs['augment_path'] = kwargs['augment_path'] if 'augment_path' in kwargs else None
     kwargs['ckpt_path'] = kwargs['ckpt_path'] if 'ckpt_path' in kwargs else None
@@ -269,24 +267,13 @@ def get_train_transform(args, model, log_dir=None):
         assert args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset or "comic" in args.dataset
 
         from tdga_augment import tdga_augment
+
         if args.augment_path:
             transform = cp.load(open(args.augment_path, 'rb'))
             os.system('cp {} {}'.format(
                 args.augment_path, os.path.join(log_dir, 'augmentation.cp')))
         else:
             transform = tdga_augment(args, model, log_dir=log_dir)
-            if log_dir:
-                cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
-    elif args.auto_augment_ind_train:  # 個体でミニデータを用いて学習する
-        assert args.dataset == 'cifar10'
-
-        from tdga_augment_ind_train import tdga_augment
-        if args.augment_path:
-            transform = cp.load(open(args.augment_path, 'rb'))
-            os.system('cp {} {}'.format(
-                args.augment_path, os.path.join(log_dir, 'augmentation.cp')))
-        else:
-            transform = tdga_augment(args, log_dir=log_dir)
             if log_dir:
                 cp.dump(transform, open(os.path.join(log_dir, 'augmentation.cp'), 'wb'))
     elif args.dataset == 'cifar10' or args.dataset == 'cifar100' or 'svhn' in args.dataset:
@@ -362,7 +349,7 @@ def split_dataset(args, dataset, k):
         Y = dataset.targets
     elif 'svhn' in args.dataset:
         Y = dataset.labels
-    elif "comic" in args.dataset:
+    elif 'comic' in args.dataset:
         Y = dataset.targets
     else:
         raise Exception('Unknown dataset')
@@ -440,14 +427,14 @@ def get_dataset(args, transform, split='train'):
             dataset = Subset(dataset, split_index[split])
 
     elif args.dataset == 'comic':
-        train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
+        train = 'train' if split in ['train', 'trainval'] else 'test'
         dataset = ComicDataset(os.path.join(DATASET_PATH, 'comic'),
                                split=train,
                                transform=transform
                                )
 
     elif args.dataset == 'fourscene-comic':
-        train = 'train' if split in ['train', 'val', 'trainval'] else 'test'
+        train = 'train' if split in ['train', 'trainval'] else 'test'
         dataset = FourSceneDataset(os.path.join(DATASET_PATH, 'comic'),
                                    split=train,
                                    transform=transform

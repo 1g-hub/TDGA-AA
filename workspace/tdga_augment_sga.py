@@ -231,11 +231,14 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
 
     toolbox.register("evaluate", evaluate_ind)
+
     toolbox.register("mate", tools.cxUniform, indpb=0.5)
+    # toolbox.register("mate", tools.cxOnePoint)
 
     def mutChangeBit(individual, indpb):
         for i in range(len(individual)):
             if random.random() < indpb:
+                individual[i] = random.randint(0, allele_max)
                 individual[i] = random.randint(0, allele_max)
 
         return individual,
@@ -245,12 +248,14 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
 
     Np = args.Np
     Ngen = args.Ng
-    t_init = args.tinit
-    t_fin = args.tfin
-    tds = ThermoDynamicalSelection(Np=Np, t_init=t_init, t_fin=t_fin, Ngen=Ngen, is_compress=False)
-    toolbox.register("select", tds.select)
-    pop = toolbox.population(n=Np)
-    CXPB, MUTPB, NGEN = 1, 1, Ngen
+    # t_init = args.tinit
+    # t_fin = args.tfin
+    # tds = ThermoDynamicalSelection(Np=Np, t_init=t_init, t_fin=t_fin, Ngen=Ngen, is_compress=False)
+    # toolbox.register("select", tds.select)
+
+    toolbox.register("select", tools.selTournament, tournsize=2)
+    pop = toolbox.population(n=2*Np)  # TDGA と個体評価の回数を同じにするために 2Np にする
+    CXPB, MUTPB, NGEN = 0.6, 1, Ngen
     print("Start of evolution")
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
@@ -264,7 +269,9 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         print("-- Generation %i --" % g)
         elite = tools.selBest(pop, 1)
         elite = list(map(toolbox.clone, elite))
-        offspring = list(map(toolbox.clone, pop))
+
+        offspring = toolbox.select(pop, len(pop))
+        offspring = list(map(toolbox.clone, offspring))
 
         for ind1, ind2 in zip(offspring[::2], offspring[1::2]):
             if random.random() < CXPB:
@@ -272,22 +279,25 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
                 del ind1.fitness.values
                 del ind2.fitness.values
 
-        gen = pop + offspring  # 2Np
-        for mutant in gen:
+        # invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+        # print("  Evaluated %i individuals" % len(invalid_ind))
+        # fitnesses = map(toolbox.evaluate, invalid_ind)
+        # for ind, fit in zip(invalid_ind, fitnesses):
+        #     ind.fitness.values = fit
+
+        for mutant in offspring:
             if random.random() < MUTPB:
                 toolbox.mutate(mutant)
                 del mutant.fitness.values
 
-        gen += elite
-
-        invalid_ind = [ind for ind in gen if not ind.fitness.valid]
-        print("  Evaluated %i individuals" % len(invalid_ind))
+        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
         fitnesses = map(toolbox.evaluate, invalid_ind)
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
-        selected = toolbox.select(gen, k=Np)
-        pop[:] = selected
+        offspring = tools.selBest(offspring, len(offspring) - 1) + elite  # fitness 最小の個体をエリートと入れ替える
+
+        pop[:] = offspring
 
         print("Pop:", pop)
         print("Fitnesses", [ind.fitness.values[0] for ind in pop])
@@ -299,8 +309,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
 
-    best_ind = toolbox.select(pop, B)
-    # best_ind = tools.selBest(pop, B)
+    # best_ind = toolbox.select(pop, B)
+    best_ind = tools.selBest(pop, B)
     print("best_ind", best_ind)
 
     os.makedirs(os.path.join(log_dir, 'figures'), exist_ok=True)

@@ -20,6 +20,8 @@ from torchvision.transforms.functional import to_pil_image
 from utils import progress_bar, parse_args, get_model_name, select_model, select_optimizer, select_scheduler, \
     get_train_transform, get_test_transform, get_dataset
 from datetime import datetime
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
 
 
 def main(**kwargs):
@@ -168,11 +170,18 @@ def main(**kwargs):
         if acc > best_acc:
             best_acc = acc
             print('Saving..')
-            state = {
-                'net': net.state_dict(),
-                'acc': acc,
-                'epoch': epoch,
-            }
+            if torch.cuda.device_count() > 1:
+                state = {
+                    'net': net.module.state_dict(),
+                    'acc': acc,
+                    'epoch': epoch,
+                }
+            else:
+                state = {
+                    'net': net.state_dict(),
+                    'acc': acc,
+                    'epoch': epoch,
+                }
             torch.save(state, os.path.join(log_dir, "model", "model.pt"))
 
         return acc
@@ -215,8 +224,38 @@ def main(**kwargs):
     test_last_acc = 0
     for epoch in range(args.epochs):
         train(epoch)
-        # valid(epoch)
+        valid(epoch)
         test_last_acc = test(epoch)
+
+    writer.add_scalar('test/best_acc', best_test_acc)
+    writer.add_scalar('test/last_acc', test_last_acc)
+
+    # val best を用いて検証
+    model = select_model(args)
+    model = model.to(device)
+    state = torch.load(os.path.join(log_dir, "model", "model.pt"))
+    model.load_state_dict(state['net'])
+    preds = []
+
+    if 'cifar' in args.dataset:
+        labels = testset.targets
+    elif 'svhn' in args.dataset:
+        labels = testset.labels
+    elif 'comic' in args.dataset:
+        labels = testset.targets
+
+    model.eval()
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(testloader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            _, predicted = outputs.max(1)
+            preds += predicted.detach().cpu().numpy().tolist()
+
+    print("best epoch:", state['epoch'])
+    print(confusion_matrix(labels, preds))
+    print(classification_report(labels, preds))
+
     print("Train Started at {}".format(start))
     finish = datetime.now()
     print("Train Finished at {}".format(finish))
@@ -230,9 +269,9 @@ def main(**kwargs):
 if __name__ == "__main__":
     # fire.Fire(main)
     l = []
-    N = 5
+    N = 3
     for _ in range(N):
-        l.append(fire.Fire(main)[1])
+        l.append(fire.Fire(main)[2])
     print(l)
     ave = sum(l)/N
     print(ave)

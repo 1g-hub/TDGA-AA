@@ -360,7 +360,15 @@ if __name__ == '__main__':
     os.makedirs("transform_test/", exist_ok=True)
     img = Image.open(path).convert("RGB")
 
-    for op in l:
-        for mag in [0, 15, 30]:
-            img_transformed = op(prob=1, mag=mag)(img)
-            img_transformed.save("transform_test/transformed_{}_{}.png".format(str(op), mag))
+    # for op in l:
+    #     for mag in [0, 15, 30]:
+    #         img_transformed = op(prob=1, mag=mag)(img)
+    #         img_transformed.save("transform_test/transformed_{}_{}.png".format(str(op), mag))
+    #
+
+    subpolicies = [AutoContrast, Rotate, TranslateY]
+
+    for s in subpolicies:
+        img = s(prob=1, mag=10)(img)
+
+    img.save("transformed_with_sub_policy.png")

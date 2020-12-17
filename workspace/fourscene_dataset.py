@@ -16,7 +16,7 @@ class FourSceneDataset(Dataset):
         self.targets = []
         self.transform = transform
 
-        for title_idx, title in enumerate(os.listdir(root)):
+        for title_idx, title in enumerate(sorted(os.listdir(root))):
             title_path = os.path.join(root, title)
             num_data = len(os.listdir(title_path)) // 4
             img_list = natsorted(os.listdir(title_path))
@@ -31,11 +31,11 @@ class FourSceneDataset(Dataset):
                 story_0.append(pil_img)
 
                 if idx % 4 == 3:
-                    if split == "train" and idx//4 <= int(num_data*0.9):
+                    if split == "train" and idx//4 < int(num_data*0.9):
                         self.stories.append(story_0)
                         self.targets.append(0)
 
-                    elif split != "train" and idx//4 > int(num_data*0.9):
+                    elif split != "train" and idx//4 >= int(num_data*0.9):
                         self.stories.append(story_0)
                         self.targets.append(0)
 
@@ -51,11 +51,11 @@ class FourSceneDataset(Dataset):
                     other_pli_img = Image.open(other_img_path)
                     story_1[-1] = other_pli_img
 
-                    if split == "train" and idx // 4 <= int(num_data * 0.9):
+                    if split == "train" and idx // 4 < int(num_data * 0.9):
                         self.stories.append(story_1)
                         self.targets.append(1)
 
-                    elif split != "train" and idx // 4 > int(num_data * 0.9):
+                    elif split != "train" and idx // 4 >= int(num_data * 0.9):
                         self.stories.append(story_1)
                         self.targets.append(1)
 
@@ -73,11 +73,11 @@ class FourSceneDataset(Dataset):
                     other_title_pil_img = Image.open(other_title_image_path)
                     story_2[-1] = other_title_pil_img
 
-                    if split == "train" and idx // 4 <= int(num_data * 0.9):
+                    if split == "train" and idx // 4 < int(num_data * 0.9):
                         self.stories.append(story_2)
                         self.targets.append(2)
 
-                    elif split != "train" and idx // 4 > int(num_data * 0.9):
+                    elif split != "train" and idx // 4 >= int(num_data * 0.9):
                         self.stories.append(story_2)
                         self.targets.append(2)
 
