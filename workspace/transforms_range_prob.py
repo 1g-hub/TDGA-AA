@@ -299,7 +299,7 @@ def augment_list():  # 16 oeprations and their ranges
         Sharpness,
         ShearX,
         ShearY,
-        CutoutAbs,
+        Cutout,
         TranslateX,
         TranslateY,
     ]
@@ -355,20 +355,21 @@ class RandAugment:
 if __name__ == '__main__':
     l = augment_list()
     # l = [CutoutDefault]
-    path = "plane.png"
+    # path = "plane.png"
+    path = "000.jpg"
     import os
     os.makedirs("transform_test/", exist_ok=True)
     img = Image.open(path).convert("RGB")
 
-    # for op in l:
-    #     for mag in [0, 15, 30]:
-    #         img_transformed = op(prob=1, mag=mag)(img)
-    #         img_transformed.save("transform_test/transformed_{}_{}.png".format(str(op), mag))
+    for op in l:
+        for mag in [0, 15, 30]:
+            img_transformed = op(prob=1, mag=mag)(img)
+            img_transformed.save("transform_test/transformed_{}_{}.png".format(str(op), mag))
+
+
+    # subpolicies = [AutoContrast, Rotate, TranslateY]
     #
-
-    subpolicies = [AutoContrast, Rotate, TranslateY]
-
-    for s in subpolicies:
-        img = s(prob=1, mag=10)(img)
-
-    img.save("transformed_with_sub_policy.png")
+    # for s in subpolicies:
+    #     img = s(prob=1, mag=10)(img)
+    #
+    # img.save("transformed_with_sub_policy.png")
