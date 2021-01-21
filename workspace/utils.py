@@ -300,7 +300,7 @@ def get_train_transform(args, model, log_dir=None):
         ])
 
     elif "comic" in args.dataset:
-        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
         transform = transforms.Compose([
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -330,7 +330,7 @@ def get_test_transform(args, model):
         ])
 
     elif "comic" in args.dataset:
-        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
         val_transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD),

@@ -60,7 +60,7 @@ def train_child(args, net, dataset, subset_indx):
         criterion = nn.CrossEntropyLoss()
 
     if "comic" in args.dataset:
-        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
         dataset.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD),
@@ -202,7 +202,7 @@ def ind_to_subpolicy(args, individual, transform_candidates, allele_max, mag):  
             subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=mag))
 
     if "comic" in args.dataset:
-        MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+        MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
         subpolicy = transforms.Compose([
             *subpolicy,
             transforms.ToTensor(),
@@ -316,7 +316,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
                 subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=args.mag))
 
         if "comic" in args.dataset:
-            MEAN, STD = (1.4383, 1.5044, 1.6701), (1.4398, 1.4606, 1.4490)
+            MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
             subpolicy = transforms.Compose([
                 ## baseline augmentation
                 transforms.RandomHorizontalFlip(),
