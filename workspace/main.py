@@ -35,7 +35,7 @@ def main(**kwargs):
 
     print('\n[+] Create log dir')
     model_name = get_model_name(args)
-    log_dir = os.path.join('./runs', model_name)
+    log_dir = os.path.join('./runs', args.exp_name, model_name)
     os.makedirs(os.path.join(log_dir, 'model'))
     json.dump(kwargs, open(os.path.join(log_dir, 'kwargs.json'), 'w'))
     writer = SummaryWriter(log_dir=log_dir)

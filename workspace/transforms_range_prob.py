@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 import PIL, PIL.ImageOps, PIL.ImageEnhance, PIL.ImageDraw
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageChops
 
 
 class BaseTransform(ABC):
@@ -29,6 +29,49 @@ class BaseTransform(ABC):
     @abstractmethod
     def transform(self, img):
         pass
+
+
+class GaussianNoise(BaseTransform):
+    minval = 0
+    maxval = 0.6
+
+    def transform(self, img):
+        # return PIL.Image.blend(img, PIL.Image.effect_noise(img.size, 50).convert('RGB'), self.val)
+        return PIL.ImageChops.lighter(img, PIL.Image.effect_noise(img.size, 50).convert('RGB'))
+
+
+class Senga(BaseTransform):
+    minval = 0
+    maxval = 0
+
+    def transform(self, img):
+        gray = img.convert("L")
+        gray2 = gray.filter(PIL.ImageFilter.MaxFilter(5))
+        senga_inv = PIL.ImageChops.difference(gray, gray2)
+        senga = PIL.ImageOps.invert(senga_inv)
+        return senga.convert('RGB')
+
+
+class BalloonAdd(BaseTransform):
+    minval = 0
+    maxval = 0
+
+    def transform(self, img):
+        filepath = './data/filter/filter000' + str(random.randint(0, 3)) + '.png'
+        img_a = PIL.Image.open(filepath)
+        mask = img_a.split()[-1].convert('L')
+
+        # return PIL.Image.composite(img, img_a.convert('RGB'), mask) 
+        return PIL.Image.composite(img_a.convert('RGB'), img, mask) 
+
+
+class KomaSplit(BaseTransform):
+    minval = 0
+    maxval = 0.5
+
+    def transform(self, img):
+        x, y = img.size 
+        return ImageChops.offset(img, int(self.val * x), int(self.val * y))
 
 
 class ShearX(BaseTransform):  # [-0.3, 0.3]
@@ -302,6 +345,11 @@ def augment_list():  # 16 oeprations and their ranges
         Cutout,
         TranslateX,
         TranslateY,
+        # TODO : New filter 
+        GaussianNoise,
+        Senga, 
+        BalloonAdd,
+        KomaSplit,
     ]
 
     return l
@@ -353,10 +401,9 @@ class RandAugment:
 
 
 if __name__ == '__main__':
-    l = augment_list()
-    # l = [CutoutDefault]
-    # path = "plane.png"
-    path = "000.jpg"
+    # l = augment_list()
+    l = [GaussianNoise]
+    path = "039.jpg"
     import os
     os.makedirs("transform_test/", exist_ok=True)
     img = Image.open(path).convert("RGB")
@@ -365,11 +412,11 @@ if __name__ == '__main__':
         for mag in [0, 15, 30]:
             img_transformed = op(prob=1, mag=mag)(img)
             img_transformed.save("transform_test/transformed_{}_{}.png".format(str(op), mag))
-
+    
 
     # subpolicies = [AutoContrast, Rotate, TranslateY]
-    #
+
     # for s in subpolicies:
     #     img = s(prob=1, mag=10)(img)
-    #
+
     # img.save("transformed_with_sub_policy.png")

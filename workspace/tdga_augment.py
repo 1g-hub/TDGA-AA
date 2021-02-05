@@ -228,7 +228,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
 
     def evaluate_ind(individual):
         subpolicy = ind_to_subpolicy(args, individual, transform_candidates, allele_max, args.mag)
-        return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
+        # return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
+        return (sum(individual) <= 5) * validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  
 
     toolbox.register("evaluate", evaluate_ind)
     toolbox.register("mate", tools.cxUniform, indpb=0.5)
@@ -241,7 +242,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         return individual,
 
     # toolbox.register("mutate", mutChangeBit, indpb=0.06)
-    toolbox.register("mutate", tools.mutFlipBit, indpb=0.06)
+    toolbox.register("mutate", tools.mutFlipBit, indpb=1/len(transform_candidates))
 
     Np = args.Np
     Ngen = args.Ng

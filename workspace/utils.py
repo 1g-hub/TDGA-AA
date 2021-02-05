@@ -162,6 +162,7 @@ def dict_to_namedtuple(d):
 
 def parse_args(kwargs):
     # combine with default args
+    kwargs['exp_name'] = kwargs['exp_name'] if 'exp_name' in kwargs else 'hoge'
     kwargs['dataset'] = kwargs['dataset'] if 'dataset' in kwargs else 'cifar10'
     kwargs['num_classes'] = kwargs['num_classes'] if 'num_classes' in kwargs else 10
     kwargs['network'] = kwargs['network'] if 'network' in kwargs else 'wresnet28_2'
@@ -303,6 +304,7 @@ def get_train_transform(args, model, log_dir=None):
         MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
         transform = transforms.Compose([
             transforms.RandomHorizontalFlip(),
+            # Senga(prob=0.5, mag=1),
             transforms.ToTensor(),
             transforms.Normalize(MEAN, STD),
             # CutoutDefault(length=32),

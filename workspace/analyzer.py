@@ -55,6 +55,11 @@ class Analyzer:
             "Cutout",
             "TranslateX",
             "TranslateY",
+            # TODO : New filter 
+            "GaussianNoise",
+            "Senga", 
+            "BalloonAdd",
+            "KomaSplit",
         ]
 
         fig = plt.figure()
@@ -71,7 +76,7 @@ class Analyzer:
         plt.savefig(file_name)
 
         fig = plt.figure()
-        X = np.linspace(1, 16, 16)
+        X = np.linspace(1, len(l), len(l))
         pop = self.populations[-1]
         Y_num = [0]*len(l)
         for i in range(len(l)):
@@ -106,7 +111,7 @@ class Analyzer:
         ax1.set_ylabel('Entropy')
         ax2.set_ylabel('Number of operations')
 
-        plt.xticks(range(1, 17), l)
+        plt.xticks(range(1, len(l)+1), l)
         plt.xticks(rotation=-90)
         plt.tight_layout()
         plt.savefig(os.path.join(self.log_dir, 'figures/num_transforms.png'))
