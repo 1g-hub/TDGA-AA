@@ -33,11 +33,11 @@ class BaseTransform(ABC):
 
 class GaussianNoise(BaseTransform):
     minval = 0
-    maxval = 0.6
+    maxval = 50
 
     def transform(self, img):
         # return PIL.Image.blend(img, PIL.Image.effect_noise(img.size, 50).convert('RGB'), self.val)
-        return PIL.ImageChops.lighter(img, PIL.Image.effect_noise(img.size, 50).convert('RGB'))
+        return PIL.ImageChops.lighter(img, PIL.Image.effect_noise(img.size, self.val).convert('RGB'))
 
 
 class Senga(BaseTransform):

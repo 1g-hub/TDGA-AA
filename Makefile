@@ -1,6 +1,7 @@
 NVIDIA_SMI_PATH := $(shell which nvidia-smi)
 IMAGE_NAME := python/tdgaautoaugment
 CONTAINER_NAME := python.pytorch.tdgaautoaugment
+CONTAINER_NAME_ADMIN := python.pytorch.tdgaautoaugment.admin
 WORKINGDIR := /var/www
 PWD := $(shell pwd)
 
@@ -28,7 +29,7 @@ run/root:
 		--rm -it \
 		-u root \
 		$(DOCKER_GPU_PARAMS) \
-		--name $(CONTAINER_NAME) \
+		--name $(CONTAINER_NAME_ADMIN) \
 		--volume $(PWD):$(WORKINGDIR) \
 		--shm-size 32G \
 		$(IMAGE_NAME) \
