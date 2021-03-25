@@ -269,7 +269,7 @@ def main(**kwargs):
 if __name__ == "__main__":
     # fire.Fire(main)
     l = []
-    N = 3
+    N = 5
     for _ in range(N):
         l.append(fire.Fire(main)[2])
     print(l)
@@ -277,3 +277,4 @@ if __name__ == "__main__":
     print(ave)
     s = sum((x-ave)**2 for x in l)/N
     print(s**0.5)
+

@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.4-cuda10.1-cudnn7-runtime
+FROM pytorch/pytorch:1.7.0-cuda11.0-cudnn8-runtime
 LABEL maintainer="Akira Terauchi <akira090602@gmail.com>"
 
 SHELL ["/bin/bash", "-c"]
@@ -11,7 +11,8 @@ WORKDIR $WORKSPACE
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y libopencv-dev
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+# RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+RUN pip install poetry
 
 # set poetry's path
 ENV PATH $ROOTHOME/.poetry/bin:$PATH

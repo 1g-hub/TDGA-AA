@@ -36,8 +36,13 @@ class GaussianNoise(BaseTransform):
     maxval = 50
 
     def transform(self, img):
-        # return PIL.Image.blend(img, PIL.Image.effect_noise(img.size, 50).convert('RGB'), self.val)
-        return PIL.ImageChops.lighter(img, PIL.Image.effect_noise(img.size, self.val).convert('RGB'))
+        img_np = np.array(img).astype(np.int)
+        g_filter = np.random.normal(0, self.val, (img.size[1], img.size[0]))
+        g_filter3 = np.zeros((img.size[1], img.size[0], 3)) + g_filter[:, :, np.newaxis]
+        img_np += g_filter3.astype(np.int)
+        img_np = np.clip(img_np, 0, 255)
+        img_np = img_np.astype(np.uint8)
+        return Image.fromarray(img_np)
 
 
 class Senga(BaseTransform):
@@ -345,11 +350,11 @@ def augment_list():  # 16 oeprations and their ranges
         Cutout,
         TranslateX,
         TranslateY,
-        # TODO : New filter 
-        GaussianNoise,
-        Senga, 
-        BalloonAdd,
-        KomaSplit,
+        # # TODO : New filter 
+        # GaussianNoise,
+        # Senga, 
+        # BalloonAdd,
+        # KomaSplit,
     ]
 
     return l
@@ -405,13 +410,14 @@ if __name__ == '__main__':
     l = [GaussianNoise]
     path = "039.jpg"
     import os
-    os.makedirs("transform_test/", exist_ok=True)
+    dir_name = "transform_test/gaussian_noise/"
+    os.makedirs(dir_name, exist_ok=True)
     img = Image.open(path).convert("RGB")
 
     for op in l:
-        for mag in [0, 15, 30]:
+        for mag in range(31):
             img_transformed = op(prob=1, mag=mag)(img)
-            img_transformed.save("transform_test/transformed_{}_{}.png".format(str(op), mag))
+            img_transformed.save(dir_name + "transformed_{}_{}.png".format(str(op), mag))
     
 
     # subpolicies = [AutoContrast, Rotate, TranslateY]

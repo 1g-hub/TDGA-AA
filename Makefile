@@ -1,7 +1,7 @@
 NVIDIA_SMI_PATH := $(shell which nvidia-smi)
 IMAGE_NAME := python/tdgaautoaugment
-CONTAINER_NAME := python.pytorch.tdgaautoaugment
-CONTAINER_NAME_ADMIN := python.pytorch.tdgaautoaugment.admin
+CONTAINER_NAME := python.pytorch.tdgaautoaugment.yoshida
+CONTAINER_NAME_ADMIN := python.pytorch.tdgaautoaugment.yoshida.admin
 WORKINGDIR := /var/www
 PWD := $(shell pwd)
 
