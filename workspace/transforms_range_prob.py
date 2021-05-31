@@ -351,10 +351,10 @@ def augment_list():  # 16 oeprations and their ranges
         TranslateX,
         TranslateY,
         # # TODO : New filter 
-        # GaussianNoise,
-        # Senga, 
-        # BalloonAdd,
-        # KomaSplit,
+        GaussianNoise,
+        Senga, 
+        BalloonAdd,
+        KomaSplit,
     ]
 
     return l

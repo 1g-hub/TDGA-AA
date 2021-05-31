@@ -190,6 +190,7 @@ def parse_args(kwargs):
     kwargs['Ng'] = kwargs['Ng'] if 'Ng' in kwargs else 30
     kwargs['train_split'] = kwargs['train_split'] if 'train_split' in kwargs else 'train'
     kwargs['prob_mul'] = kwargs['prob_mul'] if 'prob_mul' in kwargs else 1
+    kwargs['select_gamma'] = kwargs['select_gamma'] if 'select_gamma' in kwargs else 'nonrest'
 
     # to named tuple
     args = dict_to_namedtuple(kwargs)

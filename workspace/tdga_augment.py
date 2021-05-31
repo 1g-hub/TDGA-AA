@@ -12,6 +12,7 @@ from deap import tools
 from tdga.td_selection import ThermoDynamicalSelection
 from analyzer import Analyzer
 import numpy as np
+import math
 
 from torch.utils.data import Subset
 from datetime import datetime
@@ -216,7 +217,7 @@ def ind_to_subpolicy(args, individual, transform_candidates, allele_max, mag):  
     return subpolicy
 
 
-def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir):
+def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir, select_gamma):
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
@@ -228,8 +229,14 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
 
     def evaluate_ind(individual):
         subpolicy = ind_to_subpolicy(args, individual, transform_candidates, allele_max, args.mag)
-        # return validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
-        return (sum(individual) <= 5) * validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  
+
+        gamma = 1
+        if select_gamma == "rest5": 
+            gamma = sum(individual) <= 5
+        elif select_gamma == "down":
+            gamma = min(1, math.log(len(individual)  + 1 - sum(individual))/math.e) 
+
+        return gamma * validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
 
     toolbox.register("evaluate", evaluate_ind)
     toolbox.register("mate", tools.cxUniform, indpb=0.5)
@@ -366,7 +373,7 @@ def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates,
     print("GA Search Started")
     ga_start = datetime.now()
     # search sub policy
-    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, args.B, log_dir)
+    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, args.B, log_dir, args.select_gamma)
     finish = datetime.now()
     print("Pre-Train Elapsed Time: {}".format(ga_start - pre_start))
     print("Search Elapsed Time: {}".format(finish - ga_start))
