@@ -257,7 +257,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     Ngen = args.Ng
     t_init = args.tinit
     t_fin = args.tfin
-    tds = ThermoDynamicalSelection(Np=Np, t_init=t_init, t_fin=t_fin, Ngen=Ngen, is_compress=False)
+    fuzzy = args.fuzzy
+    tds = ThermoDynamicalSelection(Np=Np, t_init=t_init, t_fin=t_fin, Ngen=Ngen, is_compress=False, allele_max=allele_max)
     toolbox.register("select", tds.select)
     pop = toolbox.population(n=Np)
     CXPB, MUTPB, NGEN = 1, 1, Ngen
@@ -296,7 +297,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
-        selected = toolbox.select(gen, k=Np)
+        selected = toolbox.select(gen, k=Np, fuzzy=fuzzy)
         pop[:] = selected
 
         print("Pop:", pop)
@@ -309,7 +310,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
 
-    best_ind = toolbox.select(pop, B)
+    best_ind = toolbox.select(pop, B, fuzzy=fuzzy)
     # best_ind = tools.selBest(pop, B)
     print("best_ind", best_ind)
 
