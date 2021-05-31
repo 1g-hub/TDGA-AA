@@ -200,7 +200,8 @@ def ind_to_subpolicy(args, individual, transform_candidates, allele_max, mag):  
     for allele, op in zip(individual, transform_candidates):
         if allele:
             # subpolicy.append(op(prob=1 / sum(individual), mag=mag))
-            subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=mag))
+            magnitude = mag if allele_max == 1 else allele
+            subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=magnitude))
 
     if "comic" in args.dataset:
         MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
@@ -217,12 +218,12 @@ def ind_to_subpolicy(args, individual, transform_candidates, allele_max, mag):  
     return subpolicy
 
 
-def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir, select_gamma):
+def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, B, log_dir, select_gamma, allele_max, denom_of_gamma):
     creator.create("FitnessMax", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
 
-    allele_max = 1  # 対立遺伝子の最大値
+    # allele_max = 1  # 対立遺伝子の最大値
     toolbox.register("attr_bool", random.randint, 0, allele_max)
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, len(transform_candidates))
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
@@ -234,7 +235,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         if select_gamma == "rest5": 
             gamma = sum(individual) <= 5
         elif select_gamma == "down":
-            gamma = min(1, math.log(len(individual)  + 1 - sum(individual))/math.e) 
+            c_denom = math.e if allele_max == 1 else denom_of_gamma
+            gamma = min(1, math.log(len(individual)*allele_max  + 1 - sum(individual))/c_denom) 
 
         return gamma * validate_child(args, child_model, dataset, Da_indx, subpolicy)['acc'],  # val acc@1
 
@@ -321,7 +323,8 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         for allele, op in zip(ind, transform_candidates):
             if allele:
                 # subpolicy.append(op(prob=1/sum(ind), mag=args.mag))
-                subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=args.mag))
+                magnitude = args.mag if allele_max == 1 else allele
+                subpolicy.append(op(prob=args.prob_mul/len(transform_candidates), mag=magnitude))
 
         if "comic" in args.dataset:
             MEAN, STD = (0.8017, 0.8015, 0.8015), (0.2930, 0.2930, 0.2930)
@@ -373,7 +376,7 @@ def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates,
     print("GA Search Started")
     ga_start = datetime.now()
     # search sub policy
-    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, args.B, log_dir, args.select_gamma)
+    subpolicies = search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm_indx, Da_indx, args.B, log_dir, args.select_gamma, args.allele_max, args.denom_of_gamma)
     finish = datetime.now()
     print("Pre-Train Elapsed Time: {}".format(ga_start - pre_start))
     print("Search Elapsed Time: {}".format(finish - ga_start))

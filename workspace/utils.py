@@ -191,6 +191,8 @@ def parse_args(kwargs):
     kwargs['train_split'] = kwargs['train_split'] if 'train_split' in kwargs else 'train'
     kwargs['prob_mul'] = kwargs['prob_mul'] if 'prob_mul' in kwargs else 1
     kwargs['select_gamma'] = kwargs['select_gamma'] if 'select_gamma' in kwargs else 'nonrest'
+    kwargs['allele_max'] = kwargs['allele_max'] if 'allele_max' in kwargs else 1
+    kwargs['denom_of_gamma'] = kwargs['denom_of_gamma'] if 'denom_of_gamma' in kwargs else 6.31
 
     # to named tuple
     args = dict_to_namedtuple(kwargs)

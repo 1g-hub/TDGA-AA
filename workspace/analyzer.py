@@ -57,9 +57,9 @@ class Analyzer:
             "TranslateY",
             # TODO : New filter 
             "GaussianNoise",
-            "Senga", 
+            "LineArt", 
             "BalloonAdd",
-            "KomaSplit",
+            "Offset",
         ]
 
         fig = plt.figure()
