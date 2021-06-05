@@ -38,23 +38,27 @@ class ThermoDynamicalSelection:
         selected_individuals = [None] * k
         min_index = None
         E_sum = 0
+        selected_Hl = None
         for i in range(k):  # k個体の選択
-            self.calc_fuzzy_table_(i + 1)
+            if fuzzy: self.calc_fuzzy_table_(i + 1)
             F_min = float('inf')  # 自由エネルギー最小化なので最初は十分に大きな値
+            Hl = []
             for j in range(len(individuals)):  # 各個体から加えたときに F=<E>-HT の最も小さくなる個体を探す
                 Hj = self.entropy_(i + 1, individuals[j]) if not fuzzy else self.fuzzy_entropy_(individuals[j])
+                Hl.append(Hj)
                 E_bar = (E_sum + -getattr(individuals[j], "fitness").wvalues[0]) / (i + 1)
-                F = E_bar - Hj * self.temperature
+                F = E_bar - sum(Hj) * self.temperature
                 if F < F_min:
                     F_min = F
                     min_index = j
+            if i == k-1: selected_Hl = Hl[min_index]
             selected_individuals[i] = individuals[min_index]
             E_sum += -getattr(individuals[min_index], "fitness").wvalues[0]
             self.update_num_of_gene_(individuals[min_index])
 
         self.generation += 1
         self.update_temperature_()
-        return selected_individuals
+        return selected_individuals, selected_Hl
 
     def update_num_of_gene_(self, individual):  # num_of_gene更新
         for k, allele in enumerate(individual):
@@ -70,13 +74,13 @@ class ThermoDynamicalSelection:
             self.temperature = pow(self.t_init, 1-t) * pow(self.t_fin, t)
 
     def entropy_(self, target_num, candidate):  # num_of_geneと候補個体からエントロピーを計算する
-        Hall = 0
+        Hall = []
         for k, allele in enumerate(candidate):
             H1 = self.log_value_[target_num]
             self.num_of_gene_[k][allele] += 1
             for nk in self.num_of_gene_[k].values():
                 H1 += -(nk * self.log_value_[nk]) / target_num
-            Hall += H1
+            Hall.append(H1)
             self.num_of_gene_[k][allele] -= 1
 
         return Hall
@@ -95,7 +99,7 @@ class ThermoDynamicalSelection:
                 self.e_value_[i][j] = e
 
     def fuzzy_entropy_(self, candidate):
-        Hall = 0
+        Hall = []
         for k, allele in enumerate(candidate):
             H1 = 0
             self.num_of_gene_[k][allele] += 1
@@ -103,7 +107,7 @@ class ThermoDynamicalSelection:
                 if vi == 0: continue
                 for kj, vj in self.num_of_gene_[k].items():
                     H1 += vj * self.e_value_[ki][kj]
-            Hall += H1
+            Hall.append(H1)
             self.num_of_gene_[k][allele] -= 1
 
         return Hall

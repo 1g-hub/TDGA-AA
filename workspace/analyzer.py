@@ -8,37 +8,10 @@ import os
 class Analyzer:
     def __init__(self, log_dir):
         self.populations = []
-        self.entropy_matrix = None
+        self.entropy_matrix = []
+        self.best_entropy_matrix = None
         self.log_dir = log_dir
-
-    def add_pop(self, pop):
-        self.populations.append(pop)
-
-    def make_entropy_matrix_(self):
-        N_gen = len(self.populations)
-        Np = len(self.populations[0])
-        N_locus = len(self.populations[0][0])
-
-        entropy_matrix = [[0]*N_locus for _ in range(N_gen)]  # entropy_matrix[i][j] := 世代iにおける遺伝子座jのエントロピー
-
-        for g in range(N_gen):
-            pop = np.array(self.populations[g])  # 1つの世代
-            for l in range(N_locus):  # 遺伝子座毎にカウント
-                H1 = log(Np)
-                for nk in np.bincount(pop[:, l]).tolist():
-                    if nk == 0: continue  # 個数0のエントロピーは0
-                    H1 += -nk*log(nk)/Np
-
-                entropy_matrix[g][l] = H1
-
-        self.entropy_matrix = np.array(entropy_matrix)
-
-    def plot_entropy_matrix(self, file_name, applied_pop):
-        self.make_entropy_matrix_()
-        matrix = self.entropy_matrix
-        X1, X2 = np.mgrid[1:len(matrix)+1, 1:len(matrix[0])+1]
-
-        l = [
+        self.locus = [
             "AutoContrast",
             "Equalize",
             "Invert",
@@ -62,6 +35,19 @@ class Analyzer:
             "Offset",
         ]
 
+    def add_pop(self, pop):
+        self.populations.append(pop)
+
+    def add_entropy(self, H):
+        self.entropy_matrix.append(H)
+
+    def set_best_entropy(self, H):
+        self.best_entropy_matrix = H
+
+    def plot_entropy_matrix(self, file_name):
+        matrix = np.array(self.entropy_matrix)
+        X1, X2 = np.mgrid[1:len(matrix)+1, 1:len(matrix[0])+1]
+
         fig = plt.figure()
         ax = Axes3D(fig)
         ax.set_xlabel("Generation")
@@ -69,32 +55,29 @@ class Analyzer:
         ax.set_zlabel("Entropy")
         ax.view_init(elev=30, azim=-20)
         ax.plot_surface(X1, X2, matrix, rcount=1000, ccount=1000, cmap='cividis', antialiased=True)
-
-        # plt.yticks(range(1, len(matrix[0]) + 1), l)
-        # plt.yticks(rotation=-60)
-
         plt.savefig(file_name)
 
+    def plot_entropy_num_transforms(self, file_name, applied_pop):
+        matrix = np.array(self.entropy_matrix)
+
         fig = plt.figure()
-        X = np.linspace(1, len(l), len(l))
+        X = np.linspace(1, len(self.locus), len(self.locus))
         pop = self.populations[-1]
-        Y_num = [0]*len(l)
-        for i in range(len(l)):
+        Y_num = [0]*len(self.locus)
+        for i in range(len(self.locus)):
             cnt = 0
             for j in range(len(pop)):
                 cnt += pop[j][i]
             Y_num[i] = cnt
 
-        Y_num_applied = [0]*len(l)
-        for i in range(len(l)):
+        Y_num_applied = [0]*len(self.locus)
+        for i in range(len(self.locus)):
             cnt = 0
             for j in range(len(applied_pop)):
                 cnt += applied_pop[j][i]
             Y_num_applied[i] = cnt
 
-        # Y_num = np.array([39, 29, 15, 30, 5, 8, 16, 39, 27, 30, 35, 38, 36, 37, 40, 39]) # t:0.02 5回
-        # Y_num = np.array([30, 0, 0, 1, 0, 0, 0, 19, 0, 0, 16, 22, 22, 30, 32, 28])  # t:0.002 5回
-        Y_entropy = matrix[-1]
+        Y_entropy = self.best_entropy_matrix
 
         fig, ax1 = plt.subplots()
         ax2 = ax1.twinx()
@@ -111,10 +94,10 @@ class Analyzer:
         ax1.set_ylabel('Entropy')
         ax2.set_ylabel('Number of operations')
 
-        plt.xticks(range(1, len(l)+1), l)
+        plt.xticks(range(1, len(self.locus)+1), self.locus)
         plt.xticks(rotation=-90)
         plt.tight_layout()
-        plt.savefig(os.path.join(self.log_dir, 'figures/num_transforms.png'))
+        plt.savefig(file_name)
 
     def plot_stats(self, file_name, optimum_val=None):
         pop_max = []

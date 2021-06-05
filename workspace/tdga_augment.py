@@ -297,26 +297,30 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
-        selected = toolbox.select(gen, k=Np, fuzzy=fuzzy)
-        pop[:] = selected
+        selected_pop, selected_H = toolbox.select(gen, k=Np, fuzzy=fuzzy)
+        pop[:] = selected_pop
 
         print("Pop:", pop)
         print("Fitnesses", [ind.fitness.values[0] for ind in pop])
 
         analizer.add_pop(list(map(toolbox.clone, pop)))
+        analizer.add_entropy(list(map(toolbox.clone, selected_H)))
 
         # fits = [ind.fitness.values[0] for ind in pop]
 
     print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
 
-    best_ind = toolbox.select(pop, B, fuzzy=fuzzy)
+    best_ind, best_H = toolbox.select(pop, B, fuzzy=fuzzy, mul_lambda=mul_lambda)
+    analizer.set_best_entropy(list(map(toolbox.clone, best_H)))
     # best_ind = tools.selBest(pop, B)
     print("best_ind", best_ind)
 
     os.makedirs(os.path.join(log_dir, 'figures'), exist_ok=True)
-    analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy.png'), applied_pop=best_ind)
+    analizer.plot_entropy_matrix(file_name=os.path.join(log_dir, 'figures/entropy.png'))
+    analizer.plot_entropy_num_transforms(file_name=os.path.join(log_dir, 'figures/num_transforms.png'), applied_pop=best_ind)
     analizer.plot_stats(file_name=os.path.join(log_dir, 'figures/stats.png'))
+
     subpolicies = []
 
     for ind in best_ind:
