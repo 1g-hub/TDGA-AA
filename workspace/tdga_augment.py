@@ -311,7 +311,7 @@ def search_subpolicies_tdga(args, transform_candidates, child_model, dataset, Dm
     print("Final Pop:", pop)
     print("Fitnesses", [ind.fitness.values[0] for ind in pop])
 
-    best_ind, best_H = toolbox.select(pop, B, fuzzy=fuzzy, mul_lambda=mul_lambda)
+    best_ind, best_H = toolbox.select(pop, B, fuzzy=fuzzy)
     analizer.set_best_entropy(list(map(toolbox.clone, best_H)))
     # best_ind = tools.selBest(pop, B)
     print("best_ind", best_ind)
