@@ -45,6 +45,22 @@ DEFAULT_CANDIDATES = augment_list()
 from utils import *
 
 
+class RandomChoiceWithWeight(transforms.RandomChoice): 
+    def __init__(self, transforms, weights):
+        super().__init__(transforms)
+        self.weights = [i[0] + 1 for i in sorted(enumerate(weights), key=lambda x:x[1])]
+        self.results = [0] * len(self.transforms)
+
+    def __call__(self, img):
+        chosen_idx = random.choices([i for i in range(len(self.transforms))], weights=self.weights, k=1)[0]
+        self.results[chosen_idx] += 1
+        t = self.transforms[chosen_idx]
+        return t(img)
+
+    def get_weights(self):
+        return self.weights
+
+
 def train_child(args, net, dataset, subset_indx):
     # device = None
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -385,7 +401,7 @@ def process_fn(args_str, model, dataset, Dm_indx, Da_indx, transform_candidates,
     finish = datetime.now()
     print("Pre-Train Elapsed Time: {}".format(ga_start - pre_start))
     print("Search Elapsed Time: {}".format(finish - ga_start))
-    return [subpolicy[0] for subpolicy in subpolicies]
+    return [subpolicy[0] for subpolicy in subpolicies], [subpolicy[1] for subpolicy in subpolicies]
 
 
 def tdga_augment(args, model, transform_candidates=None, log_dir=None):
@@ -404,8 +420,10 @@ def tdga_augment(args, model, transform_candidates=None, log_dir=None):
     # print(len(Dm_indexes[0]))
     # print(len(Da_indexes[0]))
     # print(type(Dm_indexes))
-    transform = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, log_dir)
+    transform, weights = process_fn(args_str, model, dataset, Dm_indexes[0], Da_indexes[0], transform_candidates, log_dir)
 
-    transform = transforms.RandomChoice(transform)
+    kwargs = json.loads(args_str)
+    args, kwargs = parse_args(kwargs)
+    transform = RandomChoiceWithWeight(transforms=transform, weights=weights) if args.weighted_choice else transforms.RandomChoice(transform)
 
     return transform

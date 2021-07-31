@@ -194,6 +194,7 @@ def parse_args(kwargs):
     kwargs['allele_max'] = kwargs['allele_max'] if 'allele_max' in kwargs else 1
     kwargs['denom_of_gamma'] = kwargs['denom_of_gamma'] if 'denom_of_gamma' in kwargs else 6.31
     kwargs['fuzzy'] = kwargs['fuzzy'] if 'fuzzy' in kwargs else False
+    kwargs['weighted_choice'] = kwargs['weighted_choice'] if 'weighted_choice' in kwargs else False
 
     # to named tuple
     args = dict_to_namedtuple(kwargs)
