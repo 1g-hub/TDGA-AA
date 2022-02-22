@@ -269,7 +269,7 @@ def main(**kwargs):
 if __name__ == "__main__":
     # fire.Fire(main)
     l = []
-    N = 3
+    N = 1
     for _ in range(N):
         l.append(fire.Fire(main)[2])
     print(l)
