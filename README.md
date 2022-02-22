@@ -52,6 +52,7 @@ $ python main.py --auto_augment=true --mag=5 --tinit=0.02 --tfin=0.02 --prob_mul
 - Np: GA の1世代の個体数
 - Ng: GA の世代数
 - prob_mul: 確率の乗算値
+- allele_max: 対立遺伝子の最大値
 
 ### 各ファイル, フォルダの説明
 - main.py: メインファイル．引数と一緒に呼び出す．
